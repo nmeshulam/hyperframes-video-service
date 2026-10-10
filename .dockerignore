@@ -1,0 +1,11 @@
+node_modules
+dist
+renders
+test-music
+*.mp4
+*.png
+*.jpg
+.git
+.DS_Store
+.env*
+!scripts

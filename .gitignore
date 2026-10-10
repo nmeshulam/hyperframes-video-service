@@ -1,0 +1,75 @@
+# ==========================================
+# HyperFrames Video Service - .gitignore
+# ==========================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production Build Outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Sensitive Environment Files & API Keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-key.json
+
+# Rendered Media & Heavy Video Files
+renders/
+*.mp4
+*.webm
+*.mov
+*.m4a
+
+# Public external skills repository (do NOT track in private git)
+assets/skills/
+skills/
+
+# Local Test & Media Assets
+assets/audio/
+assets/images/
+assets/transcript/
+assets/story_plan.json
+
+# Scratch Spikes & Prototype Folders
+test-music/
+compositions/
+.u2net/
+.cache/
+tmp/
+/tmp/
+
+# Scratch Root Files from Prototyping
+index.html
+hyperframes.json
+hyperframes.lock.json
+meta.json
+
+# Legacy Prototype Script Spikes (keep TypeScript production source in src/)
+src/*.mjs
+
+# Logs and Diagnostics
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Operating System & IDE Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
