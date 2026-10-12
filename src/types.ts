@@ -15,6 +15,7 @@ export interface VideoJobPayload {
   artist_name?: string;
   user_images?: string[];
   style?: string; // e.g. "kinetic"
+  reuse_existing_images?: boolean; // testing mode: reuse cached scene images & layers
 }
 
 export interface TranscriptWord {

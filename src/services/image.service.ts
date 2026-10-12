@@ -8,6 +8,7 @@ export interface GeneratedSceneImage {
   imageFilename: string;
   imagePath: string;
   base64Data: string;
+  promptUsed: string;
 }
 
 export class ImageService {
@@ -34,17 +35,18 @@ export class ImageService {
       const scene = storyPlan.scenes[i];
       const sceneIndex = i + 1;
       const sceneStartTime = Date.now();
-      console.log(`[ImageService] Generating Scene ${sceneIndex}/3: "${scene.title}"...`);
 
+      let promptText = '';
       const messages: any[] = [];
+
       if (previousImageBase64) {
-        console.log(`[ImageService] Scene ${sceneIndex}: Passing Scene ${sceneIndex - 1} as reference image for character consistency`);
+        promptText = `Create the next consecutive cinematic scene for this music video story. Maintain strict visual continuity with the reference image: preserve the exact same primary hero subjects (characters, vehicles, objects, creatures, or architecture), materials, color palette, lighting, and aesthetic world. Scene description: ${scene.imagePrompt}. Photographic style: ${storyPlan.artStyle}. ${aspectPrompt}.`;
         messages.push({
           role: 'user',
           content: [
             {
               type: 'text',
-              text: `Create the next consecutive cinematic scene for this music video story. Maintain the EXACT same human person, hair, facial features, clothing, and aesthetic style from the reference image. Scene description: ${scene.imagePrompt}. Photographic style: ${storyPlan.artStyle}. ${aspectPrompt}.`
+              text: promptText
             },
             {
               type: 'image_url',
@@ -53,11 +55,21 @@ export class ImageService {
           ]
         });
       } else {
+        promptText = `Create a cinematic photograph in this style: ${storyPlan.artStyle}. Scene description: ${scene.imagePrompt}. Volumetric dramatic lighting, rich textures, ground hero subjects in lower 60% with open atmospheric headroom in upper 40%, ${aspectPrompt}.`;
         messages.push({
           role: 'user',
-          content: `Create a cinematic photograph in this style: ${storyPlan.artStyle}. Scene description: ${scene.imagePrompt}. High quality, realistic skin texture, volumetric dramatic lighting, ${aspectPrompt}.`
+          content: promptText
         });
       }
+
+      console.log(`\n======================================================`);
+      console.log(`🎨 [ImageService] SCENE ${sceneIndex}/3 GENERATION: "${scene.title}"`);
+      console.log(`📷 Model: ${config.openrouterImageModel}`);
+      console.log(`📝 Full Image Prompt:\n${promptText}`);
+      if (previousImageBase64) {
+        console.log(`🔗 Sequential Reference: Scene ${sceneIndex - 1} attached as visual anchor`);
+      }
+      console.log(`======================================================\n`);
 
       try {
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -87,18 +99,18 @@ export class ImageService {
         fs.writeFileSync(imagePath, Buffer.from(base64Data, 'base64'));
 
         const elapsed = ((Date.now() - sceneStartTime) / 1000).toFixed(1);
-        console.log(`[ImageService] ✓ Scene ${sceneIndex} generated and saved in ${elapsed}s -> ${imageFilename}`);
+        console.log(`✓ [ImageService] Scene ${sceneIndex} generated & saved in ${elapsed}s -> ${imageFilename}`);
 
         previousImageBase64 = base64Data;
         generatedImages.push({
           sceneIndex,
           imageFilename,
           imagePath,
-          base64Data
+          base64Data,
+          promptUsed: promptText
         });
       } catch (err: any) {
         console.error(`[ImageService] Failed to generate image for scene ${sceneIndex}: ${err.message}`);
-        // If scene 2 or 3 failed, reuse scene 1 or previous image as safe fallback
         if (generatedImages.length > 0) {
           const fallback = generatedImages[generatedImages.length - 1];
           const imageFilename = `scene_${sceneIndex}.jpg`;
@@ -109,7 +121,8 @@ export class ImageService {
             sceneIndex,
             imageFilename,
             imagePath,
-            base64Data: fallback.base64Data
+            base64Data: fallback.base64Data,
+            promptUsed: fallback.promptUsed
           });
         } else {
           throw err;

@@ -73,7 +73,8 @@ fastify.post('/render-video', async (request, reply) => {
     aspect_ratio: body.aspect_ratio || body.aspectRatio || body.ratio || '16:9',
     track_name: body.track_name || body.trackName || 'Cinematic Story',
     artist_name: body.artist_name || body.artistName,
-    user_images: body.user_images || body.userImages || []
+    user_images: body.user_images || body.userImages || [],
+    reuse_existing_images: body.reuse_existing_images ?? body.reuseExistingImages
   };
 
   fastify.log.info(`[Server] Received render request for job ${jobId}`);

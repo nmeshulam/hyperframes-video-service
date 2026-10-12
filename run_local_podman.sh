@@ -9,6 +9,9 @@ echo "========================================================"
 echo "🚀 Building & Launching HyperFrames Service in Podman..."
 echo "========================================================"
 
+# Sync host clock to podman machine to prevent TLS CERT_NOT_YET_VALID errors
+podman machine ssh "sudo date -s '$(date -u +"%Y-%m-%d %H:%M:%S")'" 2>/dev/null || true
+
 # 1. Stop and remove existing container if running
 if podman ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}\$"; then
   echo "🛑 Stopping existing container '${CONTAINER_NAME}'..."
@@ -41,6 +44,7 @@ echo "▶️ Starting container '${CONTAINER_NAME}' on port ${PORT}..."
 podman run -d \
   -v "$(pwd)/assets:/app/assets:ro" \
   -v "$(pwd)/renders:/app/renders" \
+  -v "$(pwd)/cache:/app/cache" \
   --name "${CONTAINER_NAME}" \
   -p "${PORT}:8080" \
   ${ENV_FILE} \

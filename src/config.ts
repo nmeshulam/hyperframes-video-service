@@ -31,5 +31,6 @@ export const config = {
   openrouterStoryModel: process.env.OPENROUTER_STORY_MODEL || 'google/gemini-2.5-flash-lite',
   openrouterImageModel: process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image',
   workerCount: parseInt(process.env.HYPERFRAMES_WORKER_COUNT || '3', 10),
-  tempDir: process.env.TEMP_DIR || '/tmp/hyperframes-jobs'
+  tempDir: process.env.TEMP_DIR || '/tmp/hyperframes-jobs',
+  cacheDir: process.env.CACHE_DIR || '/app/cache'
 };

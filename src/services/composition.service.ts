@@ -32,7 +32,7 @@ export function resolveDimensions(aspectRatio: string = '16:9'): DimensionConfig
       width: 1080,
       height: 1920,
       resolution: '1080x1920',
-      fontSize: 54,
+      fontSize: 58,
       maxLineWidth: 900,
       badgeTop: 140,
       isVertical: true
@@ -44,7 +44,7 @@ export function resolveDimensions(aspectRatio: string = '16:9'): DimensionConfig
       width: 1080,
       height: 1080,
       resolution: '1080x1080',
-      fontSize: 60,
+      fontSize: 64,
       maxLineWidth: 960,
       badgeTop: 80,
       isVertical: false
@@ -78,8 +78,8 @@ export class CompositionService {
   }
 
   /**
-   * Builds the HyperFrames index.html composition using the actual song transcript
-   * and the 3 story-generated scenes.
+   * Builds the HyperFrames index.html composition using Claude Sonnet 5.5,
+   * giving Claude complete creative freedom to design the most impactful WOW kinetic effects.
    */
   public async generateCompositionHtml(
     transcript: FullTranscript,
@@ -96,82 +96,171 @@ export class CompositionService {
 
     const dims = resolveDimensions(aspectRatio);
 
-    // If Claude API is available, ask Claude to compose using the true transcript and scenes
     if (this.anthropic) {
       try {
         console.log(`[CompositionService] Calling Claude API (${config.anthropicModel}) for ${dims.resolution} composition...`);
-        
+
+        // Build the creative prompt giving Claude full artistic freedom
         const prompt = `
-You are an elite motion designer specializing in HyperFrames and GSAP kinetic typography.
-Generate a complete, self-contained index.html for a ${dims.resolution} (${aspectRatio}) 30FPS lyric video.
+You are a world-class motion designer and creative director for viral, high-end kinetic music videos.
+Your job is to generate a complete, production-grade, self-contained index.html video composition powered by HyperFrames and GSAP.
 
-CRITICAL INSTRUCTION - ZERO HALLUCINATIONS:
-You MUST use ONLY the exact words and timestamps from the provided transcript below. Do NOT use placeholder lyrics or words from any other song. Every lyric word displayed in the video must match the transcript exactly.
-
+======================================================
+PROJECT & CANVAS SPECIFICATIONS
+======================================================
 Song Title: "${trackName}"
-Audio File: assets/audio/${audioFilename}
-Duration: ${totalDuration} seconds
-Aspect Ratio: ${dims.resolution} (${aspectRatio})
+Audio Track: assets/audio/${audioFilename}
+Duration: ${totalDuration} seconds (FPS: 30)
+Canvas Resolution: ${dims.resolution} (${aspectRatio})
+Canvas Dimensions: width=${dims.width}px, height=${dims.height}px
 
-Transcript Words with exact IDs and Timings:
+======================================================
+STORY SCENES & VISUAL ASSETS
+======================================================
+The song has been directed into 3 consecutive narrative visual scenes:
+${scenes.map((s, idx) => `
+Scene ${idx + 1}: "${s.title}" (${s.startTime}s to ${s.endTime}s)
+- Background Plate: ${s.bgPath}
+- Foreground Cutout (Subject): ${s.fgPath}
+- Mood / Color Theme: ${s.colorTheme}
+- Lyric Word IDs in this scene: ${s.wordIds.length} words (${s.wordIds[0] || 'none'} to ${s.wordIds[s.wordIds.length - 1] || 'none'})
+`).join('')}
+
+======================================================
+FULL SONG TRANSCRIPT (EXACT WORDS & WORD-LEVEL TIMESTAMPS)
+======================================================
+CRITICAL RULE: You MUST use ONLY the exact words from this transcript. Every word displayed MUST match the song text and timestamps. Zero hallucinated lyrics.
+
 ${JSON.stringify(transcript.words.map(w => ({ id: w.id, word: w.word, start: w.start, end: w.end })), null, 2)}
 
-3 Consecutive Visual Story Scenes:
-${scenes.map((s, idx) => `Scene ${idx + 1}: "${s.title}" (${s.startTime}s - ${s.endTime}s)
-  - Background: ${s.bgPath}
-  - Subject Cutout: ${s.fgPath}
-  - Color Theme: ${s.colorTheme}
-  - Word IDs in this scene: ${JSON.stringify(s.wordIds)}
-`).join('\n')}
+======================================================
+DIRECTOR'S BRIEF: 2.5D MUSIC VIDEO KINETIC DESIGN
+======================================================
+You are the Creative Director and Lead Motion Designer for a viral music video. Your job is to transform this vocal track into an unforgettable, beat-synced visual experience.
 
-TECHNICAL REQUIREMENTS:
-1. Include metadata: <meta name="hyperframes:version" content="0.8">, duration="${totalDuration}", fps="30", resolution="${dims.resolution}".
-2. Set viewport: <meta name="viewport" content="width=${dims.width}, height=${dims.height}, initial-scale=1.0">.
-3. Import fonts: Montserrat (800, 900), Plus Jakarta Sans (700). Import GSAP: https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js.
-4. CSS Dimensions: html, body, and root element MUST be exactly ${dims.width}px by ${dims.height}px.
-5. In 9:16 vertical mode, respect mobile safe zones (center primary typography between y=700px and y=1300px; avoid top 120px and bottom 200px).
-6. 2.5D Depth Stack per scene:
-   - Layer 1: Background Plate (${scenes[0]?.bgPath}) with subtle scale/pan parallax.
-   - Layer 2: Ambient lighting aura matching scene colorTheme.
-   - Layer 3: Depth Lyrics displaying the exact words for that scene with word-by-word highlight boxes matching w.start and w.end.
-   - Layer 4: Foreground Subject Cutout (${scenes[0]?.fgPath}) with reverse parallax so lyrics float between background and subject!
-   - Layer 5: Subtle cinematic vignette.
-7. Return ONLY the raw valid HTML inside \`\`\`html ... \`\`\` code block.
+------------------------------------------------------
+1. CADENCE-DRIVEN TYPOGRAPHY (READING THE VOCAL RHYTHM)
+------------------------------------------------------
+Read the vocal cadence from the word timestamps to direct the layout:
+- RAPID VOCAL FLOW (Words close together, <0.4s):
+  The artist is singing/rapping continuously. GROUP these words into natural lyrical phrases (3 to 6 words). Present the phrase as a cohesive visual unit with fluid word-by-word highlights, glowing sweeps, or subtle rhythm pulses. NEVER flash single rapid words in the same position.
+- HEAVY BEATS & EMPHATIC DROPS (Pauses or isolated words >0.7s):
+  These are anchor moments! Give these words solitary, bold hero presentation (large scale, high-impact entrance).
+- THE GOLDEN TIMELINE RULE (ZERO OVERLAPPING):
+  When the singer finishes a phrase, that phrase MUST cleanly exit the screen before or precisely as the next phrase arrives. Under no circumstances should two phrases collide or remain visible at the same coordinates.
+
+------------------------------------------------------
+2. SCENE-BY-SCENE MOTION PERSONALITIES (VISUAL PROGRESSION)
+------------------------------------------------------
+A great music video EVOLVES visually across scenes. Do NOT repeat the exact same animation technique across the whole song! Give each of the 3 scenes a distinct visual signature matching its narrative atmosphere:
+
+- SCENE 1 ("${scenes[0]?.title || 'The Genesis'}"):
+  Atmosphere: ${scenes[0]?.colorTheme || 'Raw & Grounded'}.
+  Motion Idea: E.g., Gritty, mechanical, rising typography from the dust, words anchoring low or subtly behind the subject's silhouette with steady, measured motion.
+
+- SCENE 2 ("${scenes[1]?.title || 'The Vision'}"):
+  Atmosphere: ${scenes[1]?.colorTheme || 'Atmospheric & Ethereal'}.
+  Motion Idea: E.g., 3D floating depth, words drifting through ambient light flares, words emerging from behind the character's shoulders into negative space, liquid or glowing wave reveals.
+
+- SCENE 3 ("${scenes[2]?.title || 'The Climax'}"):
+  Atmosphere: ${scenes[2]?.colorTheme || 'Triumphant & Powerful'}.
+  Motion Idea: E.g., High-octane foreground hero typography, explosive letter dispersion/shatter on the climax drop, elastic zoom punches, bold cinematic 3D perspective tilts.
+
+Feel free to choose whatever motion techniques best serve each scene's mood—just ensure each scene feels fresh and visually distinct!
+
+------------------------------------------------------
+3. THE 2.5D STAGE SANDBOX (UNIVERSAL DEPTH STAGING)
+------------------------------------------------------
+For each scene, you have two visual planes:
+- Background Plate (${scenes.map(s => s.bgPath).join(', ')}): The deep environmental world (sky, road, interior, horizon).
+- Focal Hero Cutout (${scenes.map(s => s.fgPath).join(', ')}): The primary subject(s) in the scene with transparent alpha (can be human characters, a couple, a vehicle, an instrument, a creature, or sacred architecture).
+
+Treat the canvas as a physical 3D stage with 3 strategic depth zones:
+1. UPPER HEADROOM BILLBOARD (Layer 3, z-index: 3, BEHIND the hero subject):
+   * The hero subject is grounded in the lower/mid region of the frame, leaving the upper 35-45% wide open!
+   * Place large, cinematic typography in Layer 3 across this upper headroom. Because it sits high, 85-90% of the letterform is completely visible in the open background plate, while the top silhouette of the hero subject (head, shoulders, car roof, etc.) overlaps the lower edge of the letters. This creates the iconic 3D physical depth illusion (like a Vogue/Time magazine cover) with 100% legibility!
+2. FOREGROUND HERO PUNCH (Layer 5, z-index: 7, IN FRONT of the hero subject):
+   * High-voltage climax words slamming directly in front of the subject toward the camera lens.
+3. DEPTH CROSSOVER & LATERAL FLANKING:
+   * Words can emerge from behind the subject into the open left/right negative space, or zoom forward from the upper depth plane past the subject into the foreground.
+4. CAMERA PARALLAX:
+   * Add subtle cinematic camera breathing—slowly scaling the background plate (scale: 1.0 -> 1.08) and the hero cutout (scale: 1.0 -> 1.14) at slightly different rates to create intense 2.5D dimensional realism.
+
+======================================================
+TECHNICAL HYPERFRAMES CONTRACT
+======================================================
+1. Include required metadata:
+   <meta name="hyperframes:version" content="0.8">
+   <meta name="hyperframes:duration" content="${totalDuration}">
+   <meta name="hyperframes:fps" content="30">
+   <meta name="hyperframes:resolution" content="${dims.resolution}">
+   <meta name="viewport" content="width=${dims.width}, height=${dims.height}, initial-scale=1.0">
+2. Load GSAP 3: <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+3. CSS: html, body, and root stage MUST be exactly ${dims.width}px by ${dims.height}px with overflow: hidden.
+4. GSAP Timeline MUST be registered deterministically:
+   const tl = gsap.timeline({ paused: true });
+   window.__timelines = window.__timelines || {};
+   window.__timelines["main"] = tl;
+   tl.seek(0);
+   (Do NOT use tl.play() or Date.now() - HyperFrames seeks frame by frame).
+5. Output ONLY the raw self-contained HTML document wrapped in \`\`\`html ... \`\`\`.
 `;
 
-        const response = await this.anthropic.messages.create({
+        // Log the complete prompt sent to Claude
+        console.log(`\n======================================================`);
+        console.log(`🤖 [CompositionService] FULL PROMPT SENT TO CLAUDE (${config.anthropicModel}):`);
+        console.log(`======================================================`);
+        console.log(prompt);
+        console.log(`======================================================\n`);
+
+        const response = await (this.anthropic.messages.create as any)({
           model: config.anthropicModel,
-          max_tokens: 8192,
+          max_tokens: 16384,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'low' },
           system: skillLoaderService.getHyperframesSystemPrompt(),
           messages: [{ role: 'user', content: prompt }]
         });
 
-        const textContent = response.content[0].type === 'text' ? response.content[0].text : '';
+        console.log("[CompositionService] Raw Response Blocks:", JSON.stringify((response.content || []).map((b: any) => ({ type: b.type, keys: Object.keys(b), length: (b.text || b.thinking || "").length }))));
+
+        const textContent = (response.content || [])
+          .filter((b: any) => b.type === "text" || b.text)
+          .map((b: any) => b.text || "")
+          .join("\n")
+          .trim();
+
+        console.log(`[CompositionService] Claude responded (${textContent.length} characters received).`);
+
         const htmlMatch = textContent.match(/```html([\s\S]*?)```/) || textContent.match(/<html[\s\S]*?<\/html>/i);
         if (htmlMatch) {
           const generatedHtml = htmlMatch[1] ? htmlMatch[1].trim() : htmlMatch[0].trim();
-          // Verify that it contains words from the actual transcript
           if (transcript.words.length > 0 && generatedHtml.includes(transcript.words[0].word)) {
-            console.log('[CompositionService] Claude generated complete, customized composition matching song transcript.');
+            console.log(`✓ [CompositionService] Claude custom WOW composition validated and accepted! (${generatedHtml.length} characters)`);
+            console.log("---------------- GENERATED HTML GSAP CODE PREVIEW ----------------");
+            const scriptMatch = generatedHtml.match(/<script[\s\S]*?<\/script>/i);
+            if (scriptMatch) {
+              console.log(scriptMatch[0].substring(0, 1500));
+            }
+            console.log("-------------------------------------------------------------------");
             return generatedHtml;
           } else {
-            console.warn('[CompositionService] Claude output did not contain actual song words. Falling back to deterministic master composition.');
+            console.warn('[CompositionService] Claude output did not contain actual song words. Falling back to master composition.');
           }
         } else {
-          console.warn('[CompositionService] Claude response did not contain clear HTML block. Falling back to deterministic master composition.');
+          console.warn('[CompositionService] Claude response did not contain clear HTML block. Falling back to master composition.');
         }
       } catch (err: any) {
-        console.error(`[CompositionService] Claude API error: ${err.message}. Using deterministic master composition.`);
+        console.error(`[CompositionService] Claude API error: ${err.message}. Using master composition.`);
       }
     }
 
-    // Deterministic Master Composition Engine built directly from the song transcript and 3 scenes
     return this.buildMasterStoryCompositionHtml(transcript, audioFilename, scenes, totalDuration, trackName, dims);
   }
 
   /**
-   * Deterministic Master Composition Engine guaranteeing 100% accurate lyrics,
-   * proper 2.5D layer depth, multi-scene transitions, and aspect ratio adaptation.
+   * Deterministic Master Composition Engine fallback ensuring complete lyrics accuracy
+   * and 2.5D layer depth if the AI model is unavailable.
    */
   public buildMasterStoryCompositionHtml(
     transcript: FullTranscript,
@@ -183,7 +272,6 @@ TECHNICAL REQUIREMENTS:
   ): string {
     const { width, height, resolution, fontSize, maxLineWidth, badgeTop, isVertical } = dims;
 
-    // Build scene viewports
     const scenesHtml = scenes.map((scene, i) => {
       const isFirst = i === 0;
       const sIdx = i + 1;
@@ -198,29 +286,19 @@ TECHNICAL REQUIREMENTS:
       return `
       <!-- Scene ${sIdx}: ${scene.title} (${scene.startTime}s - ${scene.endTime}s) -->
       <div id="scene-${sIdx}" class="scene-viewport" style="opacity: ${isFirst ? 1 : 0};">
-        <!-- Layer 1: Background Plate -->
         <img id="bg-scene-${sIdx}" class="bg-plate" src="${scene.bgPath}" alt="${scene.title}">
-
-        <!-- Layer 2: Volumetric Ambient Aura -->
         <div id="aura-scene-${sIdx}" class="scene-aura aura-${scene.colorTheme || 'cyan'}"></div>
-
-        <!-- Layer 3: Depth Lyrics (Between Background and Character) -->
         <div class="depth-lyrics-container">
           <div id="line-scene-${sIdx}" class="lyric-line theme-${scene.colorTheme || 'cyan'}">
             ${wordsHtml}
           </div>
         </div>
-
-        <!-- Layer 4: Foreground Subject Cutout -->
         <img id="fg-scene-${sIdx}" class="fg-character" src="${scene.fgPath}" alt="Subject Cutout ${sIdx}">
-
-        <!-- Scene Badge -->
         <div class="scene-badge">Scene ${sIdx} · ${scene.title}</div>
       </div>
       `;
     }).join('\n');
 
-    // Build scene timeline transitions
     const scenesJs = scenes.map((scene, i) => {
       const sIdx = i + 1;
       const start = scene.startTime;
@@ -242,7 +320,6 @@ TECHNICAL REQUIREMENTS:
         tl.to("#fg-scene-${sIdx}", { scale: 1.18, x: 20, duration: ${duration}, ease: "sine.inOut" }, ${start});
         tl.to("#aura-scene-${sIdx}", { scale: 1.25, opacity: 0.85, duration: ${Math.max(1, duration / 2)}, repeat: 1, yoyo: true, ease: "sine.inOut" }, ${start});
 
-        // Lyric Line Visibility
         tl.set("#line-scene-${sIdx}", { visibility: "visible" }, ${start + 0.1});
         tl.fromTo("#line-scene-${sIdx}", { opacity: 0, y: 35, scale: 0.95 }, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power2.out" }, ${start + 0.1});
         tl.to("#line-scene-${sIdx}", { opacity: 0, y: -25, scale: 1.04, duration: 0.35, ease: "power2.in" }, ${Math.max(start + 0.5, end - 0.4)});
@@ -250,9 +327,7 @@ TECHNICAL REQUIREMENTS:
       `;
     }).join('\n');
 
-    // Build exact word highlights for all transcript words
     const wordsJs = transcript.words.map(w => `
-        // Word: "${w.word}" (${w.start}s - ${w.end}s)
         tl.to("#${w.id} .word-highlight-bg", { opacity: 1, scaleX: 1, duration: 0.12, ease: "power2.out" }, ${w.start});
         tl.to("#${w.id}", { color: "#ffffff", scale: 1.10, duration: 0.12, ease: "back.out(1.4)" }, ${w.start});
         tl.to("#${w.id}", { scale: 1.0, duration: 0.12, ease: "power1.out" }, ${w.start + 0.12});
@@ -299,9 +374,7 @@ TECHNICAL REQUIREMENTS:
     .aura-crimson { background: radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.45) 0%, transparent 70%); }
     .aura-amber { background: radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.45) 0%, transparent 70%); }
     .aura-purple { background: radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.45) 0%, transparent 70%); }
-    .aura-teal { background: radial-gradient(circle at 50% 50%, rgba(45, 212, 191, 0.45) 0%, transparent 70%); }
 
-    /* Midground Depth Lyrics (Floating behind the subject cutout) */
     .depth-lyrics-container {
       position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;
       padding: ${isVertical ? '180px 40px 220px' : '0 120px'}; pointer-events: none;
@@ -333,26 +406,17 @@ TECHNICAL REQUIREMENTS:
       background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
       box-shadow: 0 0 45px rgba(251, 191, 36, 0.8), 0 0 80px rgba(217, 119, 6, 0.5);
     }
-    .theme-purple .word-highlight-bg {
-      background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
-      box-shadow: 0 0 45px rgba(192, 132, 252, 0.8), 0 0 80px rgba(147, 51, 234, 0.5);
-    }
 
-    /* Layer 4: Foreground Subject Cutout */
     .fg-character {
       position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
       transform-origin: center center; z-index: 5; pointer-events: none;
       filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.85));
     }
-
-    /* Layer 5: Cinematic Vignette */
     .scene-finisher {
       position: absolute; inset: 0;
       background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(2, 6, 23, 0.85) 100%);
       z-index: 6; pointer-events: none;
     }
-
-    /* Scene Badge */
     .scene-badge {
       position: absolute; top: ${badgeTop}px; left: 50%; transform: translateX(-50%);
       font-family: "Plus Jakarta Sans", sans-serif; font-size: ${isVertical ? '14px' : '17px'};
@@ -368,9 +432,7 @@ TECHNICAL REQUIREMENTS:
 <body>
   <div id="stage" data-composition-id="main">
     <audio id="soundtrack" src="assets/audio/${audioFilename}"></audio>
-
     ${scenesHtml}
-
     <div class="scene-finisher"></div>
   </div>
 
@@ -378,11 +440,8 @@ TECHNICAL REQUIREMENTS:
     (function () {
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
-
       ${scenesJs}
-
       ${wordsJs}
-
       window.__timelines["main"] = tl;
       tl.seek(0);
     })();

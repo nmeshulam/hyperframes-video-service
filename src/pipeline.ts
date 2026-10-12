@@ -142,35 +142,106 @@ export async function executeVideoPipeline(payload: VideoJobPayload): Promise<vo
       });
     }
 
-    // 3. Step 1: Story Planning with LLM (30%)
-    await notificationService.sendProgress(backend_url, job_id, 'analyzing lyrics and planning 3-scene story', 30, 'processing');
-    const storyPlan: StoryPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
+    // --- Fast Iteration / Testing Cache Logic ---
+    const songKey = (track_name || path.basename(audioSource, audioExt))
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_');
+    const songCacheDir = path.join(config.cacheDir, 'songs', songKey);
+    fs.mkdirSync(songCacheDir, { recursive: true });
 
-    // 4. Step 2: Sequential Image Generation with Reference Linking (45%)
-    await notificationService.sendProgress(backend_url, job_id, 'generating 3 consistent photorealistic scene images', 45, 'processing');
-    const generatedImages: GeneratedSceneImage[] = await imageService.generateSceneImages(storyPlan, imageDir, aspect_ratio);
+    const hasCachedLayers =
+      fs.existsSync(path.join(songCacheDir, 'scene1_fg.png')) &&
+      fs.existsSync(path.join(songCacheDir, 'scene1_bg.jpg')) &&
+      fs.existsSync(path.join(songCacheDir, 'scene2_fg.png')) &&
+      fs.existsSync(path.join(songCacheDir, 'scene2_bg.jpg')) &&
+      fs.existsSync(path.join(songCacheDir, 'scene3_fg.png')) &&
+      fs.existsSync(path.join(songCacheDir, 'scene3_bg.jpg'));
 
-    // 5. Step 3: Layer Segmentation via AI Background Removal (55%)
-    await notificationService.sendProgress(backend_url, job_id, 'separating foreground subjects and backgrounds', 55, 'processing');
+    const shouldReuseImages = payload.reuse_existing_images !== false &&
+      (payload.reuse_existing_images === true || process.env.CACHE_STORY_IMAGES === 'true' || hasCachedLayers);
+
+    let storyPlan: StoryPlan;
     const scenes: SceneLayer[] = [];
 
-    for (const img of generatedImages) {
-      const idx = img.sceneIndex;
-      const fgLocal = path.join(imageDir, `scene${idx}_fg.png`);
-      const bgLocal = path.join(imageDir, `scene${idx}_bg.jpg`);
+    if (shouldReuseImages && hasCachedLayers) {
+      console.log(`\n======================================================`);
+      console.log(`⚡ [Pipeline] TESTING MODE: REUSING CACHED ASSETS FOR "${songKey}"`);
+      console.log(`📁 Cache Directory: ${songCacheDir}`);
+      console.log(`⏩ Skipped 3x Gemini image generations and Python rembg segmentation!`);
+      console.log(`⏱ Saved ~30-40 seconds & $0 image generation API cost.`);
+      console.log(`======================================================\n`);
 
-      await segmentationService.separateLayers(img.imagePath, fgLocal, bgLocal);
+      // 1. Copy cached images and layers to job directory
+      for (let idx = 1; idx <= 3; idx++) {
+        const cachedRaw = path.join(songCacheDir, `scene_${idx}.jpg`);
+        if (fs.existsSync(cachedRaw)) {
+          fs.copyFileSync(cachedRaw, path.join(imageDir, `scene_${idx}.jpg`));
+        }
+        fs.copyFileSync(path.join(songCacheDir, `scene${idx}_fg.png`), path.join(imageDir, `scene${idx}_fg.png`));
+        fs.copyFileSync(path.join(songCacheDir, `scene${idx}_bg.jpg`), path.join(imageDir, `scene${idx}_bg.jpg`));
+      }
 
-      const storyScene = storyPlan.scenes[idx - 1];
-      scenes.push({
-        bgPath: `assets/images/scene${idx}_bg.jpg`,
-        fgPath: `assets/images/scene${idx}_fg.png`,
-        startTime: storyScene?.startTime ?? (idx - 1) * 15,
-        endTime: storyScene?.endTime ?? idx * 15,
-        title: storyScene?.title ?? `Scene ${idx}`,
-        colorTheme: storyScene?.colorTheme ?? 'cyan',
-        wordIds: storyScene?.wordIds ?? []
-      });
+      // 2. Load cached story plan or plan story
+      const cachedStoryPlanPath = path.join(songCacheDir, 'story_plan.json');
+      if (fs.existsSync(cachedStoryPlanPath)) {
+        storyPlan = JSON.parse(fs.readFileSync(cachedStoryPlanPath, 'utf-8'));
+        console.log(`[Pipeline] Reused cached story plan: ${storyPlan.scenes.length} scenes (style: ${storyPlan.artStyle})`);
+      } else {
+        storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
+        fs.writeFileSync(cachedStoryPlanPath, JSON.stringify(storyPlan, null, 2), 'utf-8');
+      }
+
+      // 3. Assemble scenes
+      for (let idx = 1; idx <= 3; idx++) {
+        const storyScene = storyPlan.scenes[idx - 1];
+        scenes.push({
+          bgPath: `assets/images/scene${idx}_bg.jpg`,
+          fgPath: `assets/images/scene${idx}_fg.png`,
+          startTime: storyScene?.startTime ?? (idx - 1) * 15,
+          endTime: storyScene?.endTime ?? idx * 15,
+          title: storyScene?.title ?? `Scene ${idx}`,
+          colorTheme: storyScene?.colorTheme ?? 'cyan',
+          wordIds: storyScene?.wordIds ?? []
+        });
+      }
+
+      await notificationService.sendProgress(backend_url, job_id, 'reused cached scene images and layers', 55, 'processing');
+    } else {
+      // 3. Step 1: Story Planning with LLM (30%)
+      await notificationService.sendProgress(backend_url, job_id, 'analyzing lyrics and planning 3-scene story', 30, 'processing');
+      storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
+      fs.writeFileSync(path.join(songCacheDir, 'story_plan.json'), JSON.stringify(storyPlan, null, 2), 'utf-8');
+
+      // 4. Step 2: Sequential Image Generation with Reference Linking (45%)
+      await notificationService.sendProgress(backend_url, job_id, 'generating 3 consistent photorealistic scene images', 45, 'processing');
+      const generatedImages: GeneratedSceneImage[] = await imageService.generateSceneImages(storyPlan, imageDir, aspect_ratio);
+
+      // 5. Step 3: Layer Segmentation via AI Background Removal (55%)
+      await notificationService.sendProgress(backend_url, job_id, 'separating foreground subjects and backgrounds', 55, 'processing');
+
+      for (const img of generatedImages) {
+        const idx = img.sceneIndex;
+        const fgLocal = path.join(imageDir, `scene${idx}_fg.png`);
+        const bgLocal = path.join(imageDir, `scene${idx}_bg.jpg`);
+
+        await segmentationService.separateLayers(img.imagePath, fgLocal, bgLocal);
+
+        // Copy to persistent cache for future test runs
+        fs.copyFileSync(img.imagePath, path.join(songCacheDir, `scene_${idx}.jpg`));
+        fs.copyFileSync(fgLocal, path.join(songCacheDir, `scene${idx}_fg.png`));
+        fs.copyFileSync(bgLocal, path.join(songCacheDir, `scene${idx}_bg.jpg`));
+
+        const storyScene = storyPlan.scenes[idx - 1];
+        scenes.push({
+          bgPath: `assets/images/scene${idx}_bg.jpg`,
+          fgPath: `assets/images/scene${idx}_fg.png`,
+          startTime: storyScene?.startTime ?? (idx - 1) * 15,
+          endTime: storyScene?.endTime ?? idx * 15,
+          title: storyScene?.title ?? `Scene ${idx}`,
+          colorTheme: storyScene?.colorTheme ?? 'cyan',
+          wordIds: storyScene?.wordIds ?? []
+        });
+      }
     }
 
     // 6. Step 4: Kinetic & Depth Composition Building (65%)

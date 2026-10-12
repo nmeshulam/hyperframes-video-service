@@ -32,7 +32,7 @@ export class StoryService {
 
     const fullLyrics = transcript.words.map(w => w.word).join(' ');
     const isVertical = aspectRatio.includes('9:16') || aspectRatio.toLowerCase().includes('portrait') || aspectRatio.toLowerCase().includes('tiktok');
-    const aspectDesc = isVertical ? '9:16 vertical portrait composition, full body or medium shot' : '16:9 widescreen composition';
+    const aspectDesc = isVertical ? '9:16 vertical composition, hero subjects grounded in lower 60% with open atmospheric headroom in upper 40%' : '16:9 widescreen composition with balanced negative space';
 
     const prompt = `
 You are an award-winning cinematic music video director.
@@ -53,8 +53,9 @@ Requirements:
    - Scene 1: 0s to ~${Math.round(totalDuration / 3)}s (Intro and opening verse)
    - Scene 2: ~${Math.round(totalDuration / 3)}s to ~${Math.round((totalDuration * 2) / 3)}s (Build-up and core peak)
    - Scene 3: ~${Math.round((totalDuration * 2) / 3)}s to ${totalDuration}s (Climax and resolution)
-2. The visual style MUST be PHOTOREALISTIC: "Cinematic photorealistic 35mm film photography, natural dramatic lighting, shallow depth of field, 8k resolution, authentic human emotion, realistic character, ${aspectDesc}".
-3. Each scene must feature the SAME central realistic character or subject, progressing through the emotional journey of the song with rich atmosphere, lighting, and cinematic composition.
+2. The visual style MUST be PHOTOREALISTIC: "Cinematic photorealistic 35mm film photography, natural dramatic lighting, shallow depth of field, 8k resolution, volumetric atmosphere, ${aspectDesc}".
+3. Creative Subject Direction: Choose whatever primary hero subject(s) best elevate the song's mood, genre, and lyrics—this can be a solo protagonist, two lovers/figures, a sleek sports car or motorcycle, a vintage musical instrument, a wild creature, sacred/mystical monuments, or grand natural phenomena. Maintain visual continuity of the established hero subject(s) across the 3 scenes.
+4. Framing & Headroom (Essential for Typography): In every scene's imagePrompt, ensure primary hero subjects are grounded in the lower/mid region of the frame, leaving the upper 35-45% of the frame as open atmospheric negative space (sky, horizon, ambient background) so motion typography can breathe behind and above the subject.
 4. Provide a rich, highly descriptive image prompt for each scene suitable for an AI photorealistic image model.
 5. Map every single word ID from the timestamps to its corresponding scene based on timing so no words are left out.
 6. Return ONLY valid JSON in this exact structure without markdown backticks:

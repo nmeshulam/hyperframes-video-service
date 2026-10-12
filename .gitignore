@@ -36,6 +36,7 @@ assets/audio/
 assets/images/
 assets/transcript/
 assets/story_plan.json
+cache/
 
 # Scratch Spikes & Prototype Folders
 test-music/
