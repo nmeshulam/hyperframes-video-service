@@ -29,12 +29,12 @@ export function resolveDimensions(aspectRatio: string = '16:9'): DimensionConfig
 
   if (norm === '9:16' || norm === 'vertical' || norm === 'portrait' || norm === 'tiktok' || norm === 'shorts') {
     return {
-      width: 1080,
-      height: 1920,
-      resolution: '1080x1920',
-      fontSize: 58,
-      maxLineWidth: 900,
-      badgeTop: 140,
+      width: 720,
+      height: 1280,
+      resolution: '720x1280',
+      fontSize: 42,
+      maxLineWidth: 620,
+      badgeTop: 90,
       isVertical: true
     };
   }
@@ -110,21 +110,31 @@ PROJECT & CANVAS SPECIFICATIONS
 ======================================================
 Song Title: "${trackName}"
 Audio Track: assets/audio/${audioFilename}
-Duration: ${totalDuration} seconds (FPS: 30)
+Duration: ${totalDuration} seconds (FPS: 24)
 Canvas Resolution: ${dims.resolution} (${aspectRatio})
 Canvas Dimensions: width=${dims.width}px, height=${dims.height}px
 
 ======================================================
-STORY SCENES & VISUAL ASSETS
+STORY SCENES & VISUAL ASSETS (THE EMOTIONAL ARC)
 ======================================================
-The song has been directed into 3 consecutive narrative visual scenes:
-${scenes.map((s, idx) => `
+The song has been directed into 3 consecutive narrative visual scenes with an evolving energy curve:
+${scenes.map((s, idx) => {
+  const energyProfiles = [
+    { level: '4/10', role: 'EXPOSITION & ATMOSPHERIC SETUP', desc: 'Controlled, elegant, and grounded. Focus on spatial depth, ambient mood, and clean typographic framing.' },
+    { level: '7/10', role: 'BUILD-UP & ESCALATING TENSION', desc: 'Accelerating tempo, fluid kinetic word flow, weaving through depth layers, snappier character staggers.' },
+    { level: '10/10', role: 'SONG CLIMAX & VISUAL PEAK', desc: 'Maximum explosive impact! Staggered character explosions, scale punches, dynamic lighting pulses, camera shake on bass drops.' }
+  ];
+  const profile = energyProfiles[idx] || energyProfiles[2];
+  return `
 Scene ${idx + 1}: "${s.title}" (${s.startTime}s to ${s.endTime}s)
+- Energy Arc: [Level ${profile.level} - ${profile.role}]
+- Directional Focus: ${profile.desc}
 - Background Plate: ${s.bgPath}
 - Foreground Cutout (Subject): ${s.fgPath}
 - Mood / Color Theme: ${s.colorTheme}
 - Lyric Word IDs in this scene: ${s.wordIds.length} words (${s.wordIds[0] || 'none'} to ${s.wordIds[s.wordIds.length - 1] || 'none'})
-`).join('')}
+`;
+}).join('')}
 
 ======================================================
 FULL SONG TRANSCRIPT (EXACT WORDS & WORD-LEVEL TIMESTAMPS)
@@ -136,55 +146,96 @@ ${JSON.stringify(transcript.words.map(w => ({ id: w.id, word: w.word, start: w.s
 ======================================================
 DIRECTOR'S BRIEF: 2.5D MUSIC VIDEO KINETIC DESIGN
 ======================================================
-You are the Creative Director and Lead Motion Designer for a viral music video. Your job is to transform this vocal track into an unforgettable, beat-synced visual experience.
+You are the Creative Director and Lead Motion Designer for a viral, high-end music video. Your job is to transform this vocal track into an unforgettable, beat-synced visual experience.
 
 ------------------------------------------------------
-1. CADENCE-DRIVEN TYPOGRAPHY (READING THE VOCAL RHYTHM)
+1. CADENCE-DRIVEN TYPOGRAPHY & ZERO-OVERLAP RULE
 ------------------------------------------------------
 Read the vocal cadence from the word timestamps to direct the layout:
 - RAPID VOCAL FLOW (Words close together, <0.4s):
-  The artist is singing/rapping continuously. GROUP these words into natural lyrical phrases (3 to 6 words). Present the phrase as a cohesive visual unit with fluid word-by-word highlights, glowing sweeps, or subtle rhythm pulses. NEVER flash single rapid words in the same position.
+  GROUP these words into natural lyrical phrases (3 to 6 words). Present the phrase as a cohesive visual unit with fluid word-by-word highlights, glowing sweeps, or subtle rhythm pulses. NEVER flash single rapid words in the same position.
 - HEAVY BEATS & EMPHATIC DROPS (Pauses or isolated words >0.7s):
   These are anchor moments! Give these words solitary, bold hero presentation (large scale, high-impact entrance).
 - THE GOLDEN TIMELINE RULE (ZERO OVERLAPPING):
   When the singer finishes a phrase, that phrase MUST cleanly exit the screen before or precisely as the next phrase arrives. Under no circumstances should two phrases collide or remain visible at the same coordinates.
 
 ------------------------------------------------------
-2. SCENE-BY-SCENE MOTION PERSONALITIES (VISUAL PROGRESSION)
+2. MOTION ARCHETYPE PALETTE (VARIETY IS MANDATORY)
 ------------------------------------------------------
-A great music video EVOLVES visually across scenes. Do NOT repeat the exact same animation technique across the whole song! Give each of the 3 scenes a distinct visual signature matching its narrative atmosphere:
+A great music video EVOLVES visually across scenes. Do NOT repeat the exact same animation technique across the whole song!
+You MUST assign a DIFFERENT Motion Archetype to each of the 3 scenes, matching the scene's emotional energy:
 
-- SCENE 1 ("${scenes[0]?.title || 'The Genesis'}"):
-  Atmosphere: ${scenes[0]?.colorTheme || 'Raw & Grounded'}.
-  Motion Idea: E.g., Gritty, mechanical, rising typography from the dust, words anchoring low or subtly behind the subject's silhouette with steady, measured motion.
+• ARCHETYPE A: EDITORIAL CHARACTER-STAGGER (Masked Baseline)
+  - Implementation: Wrap words into individual character spans: <span class="char">W</span><span class="char">O</span><span class="char">R</span><span class="char">D</span> (styled with display: inline-block).
+  - Motion: Characters rise up from an invisible baseline (y: 40px -> 0, opacity: 0 -> 1) with GSAP stagger: 0.025 and ease: "power3.out".
+  - Feels: Luxury, high-fashion editorial, hyper-crisp typography.
 
-- SCENE 2 ("${scenes[1]?.title || 'The Vision'}"):
-  Atmosphere: ${scenes[1]?.colorTheme || 'Atmospheric & Ethereal'}.
-  Motion Idea: E.g., 3D floating depth, words drifting through ambient light flares, words emerging from behind the character's shoulders into negative space, liquid or glowing wave reveals.
+• ARCHETYPE B: KINETIC IMPACT & SCALE-PUNCH (Beat-Drop Energy)
+  - Implementation: For high-voltage emphatic words, slam into view from (scale: 1.5 -> 1.0, opacity: 0 -> 1) with punchy deceleration ease: "back.out(2)".
+  - Micro-chromatic Kick: Brief RGB split or text-shadow shift (text-shadow: -5px 0 rgba(255,0,80,0.8), 5px 0 rgba(0,255,255,0.8)) for 0.12s upon entrance, snapping back to crisp solid white.
+  - Feels: Punchy, aggressive, viral music video downbeat.
 
-- SCENE 3 ("${scenes[2]?.title || 'The Climax'}"):
-  Atmosphere: ${scenes[2]?.colorTheme || 'Triumphant & Powerful'}.
-  Motion Idea: E.g., High-octane foreground hero typography, explosive letter dispersion/shatter on the climax drop, elastic zoom punches, bold cinematic 3D perspective tilts.
+• ARCHETYPE C: 3D BILLBOARD & EXPANDING DRIFT (Stadium Cinematic Depth)
+  - Implementation: Positioned in Layer 3 (Upper Headroom). The words breathe with expanding letter-spacing (letterSpacing: "4px" -> "14px") and subtle perspective drift (z: -40px -> 0).
+  - Feels: Grand, stadium-scale, cinematic film title sequence.
 
-Feel free to choose whatever motion techniques best serve each scene's mood—just ensure each scene feels fresh and visually distinct!
+• ARCHETYPE D: DIGITAL DISPERSE & SHATTER (Peak Glitch)
+  - Implementation: For climax or rapid vocal peaks, characters shatter or scatter in random directions upon exit (x: "random(-60, 60)", y: "random(-40, 40)", rotation: "random(-15, 15)", opacity: 0).
+  - Accompanied by a quick camera shake jitter on the container.
+  - Feels: High-tech, explosive, chaotic energy.
+
+• ARCHETYPE E: LUMINOUS ETHEREAL WAVE (Dreamlike Focus)
+  - Implementation: Characters or words emerge from a soft lens blur (filter: "blur(12px) -> blur(0px)", opacity: 0 -> 1) with a soft glowing aura.
+  - Feels: Spiritual, introspective, celestial.
 
 ------------------------------------------------------
-3. THE 2.5D STAGE SANDBOX (UNIVERSAL DEPTH STAGING)
+3. CINEMATIC 2.5D CAMERA DOLLY & IMAGE MOTION (NO CARTOON BOUNCES)
 ------------------------------------------------------
-For each scene, you have two visual planes:
-- Background Plate (${scenes.map(s => s.bgPath).join(', ')}): The deep environmental world (sky, road, interior, horizon).
-- Focal Hero Cutout (${scenes.map(s => s.fgPath).join(', ')}): The primary subject(s) in the scene with transparent alpha (can be human characters, a couple, a vehicle, an instrument, a creature, or sacred architecture).
+Do NOT leave images completely frozen, but NEVER use cartoon bounces or spinning!
+Use authentic Hollywood 2.5D multi-plane camera physics:
+- PARALLAX CAMERA DOLLY:
+  Throughout each scene, animate both the background plate and hero cutout at slightly different optical speeds:
+  * Background Plate: Slow, majestic dolly (scale: 1.0 -> 1.05, y: 0 -> -15px) across the scene duration.
+  * Hero Cutout: Drifts at a different rate (scale: 1.0 -> 1.10, y: 0 -> -28px, x: 0 -> +10px).
+  * Optical Illusion: The speed difference creates genuine 3D stereoscopic depth that looks like a real film dolly!
+- FOCAL BREATHING:
+  Add a subtle, organic vertical oscillation to the hero cutout (y: 0 -> -5px -> 0 over 4s with ease: "sine.inOut") so the subject feels living and breathing.
+- RACK FOCUS (Optional for dramatic transitions):
+  Background can start with subtle lens blur (filter: "blur(6px)"), sharpening to crisp focus (filter: "blur(0px)") on the first major vocal drop.
 
-Treat the canvas as a physical 3D stage with 3 strategic depth zones:
-1. UPPER HEADROOM BILLBOARD (Layer 3, z-index: 3, BEHIND the hero subject):
-   * The hero subject is grounded in the lower/mid region of the frame, leaving the upper 35-45% wide open!
-   * Place large, cinematic typography in Layer 3 across this upper headroom. Because it sits high, 85-90% of the letterform is completely visible in the open background plate, while the top silhouette of the hero subject (head, shoulders, car roof, etc.) overlaps the lower edge of the letters. This creates the iconic 3D physical depth illusion (like a Vogue/Time magazine cover) with 100% legibility!
-2. FOREGROUND HERO PUNCH (Layer 5, z-index: 7, IN FRONT of the hero subject):
-   * High-voltage climax words slamming directly in front of the subject toward the camera lens.
-3. DEPTH CROSSOVER & LATERAL FLANKING:
-   * Words can emerge from behind the subject into the open left/right negative space, or zoom forward from the upper depth plane past the subject into the foreground.
-4. CAMERA PARALLAX:
-   * Add subtle cinematic camera breathing—slowly scaling the background plate (scale: 1.0 -> 1.08) and the hero cutout (scale: 1.0 -> 1.14) at slightly different rates to create intense 2.5D dimensional realism.
+------------------------------------------------------
+4. DYNAMIC LIGHTING SHIFTS, CAMERA SHAKE & VISUAL FX
+------------------------------------------------------
+HyperFrames is headless Chromium capturing the exact DOM/CSS canvas at 24fps. All CSS filters and GSAP transforms render deterministically:
+- DYNAMIC LIGHTING SHIFTS:
+  Animate the CSS filter on the background plate to react to musical moments:
+  * Dramatic Beat Flash / Lightning:
+    tl.to(bgImg, { filter: "brightness(1.6) contrast(1.3)", duration: 0.08, ease: "power2.out" })
+      .to(bgImg, { filter: "brightness(0.95) contrast(1.05)", duration: 0.5, ease: "power1.out" });
+  * Mood Shift: Smoothly transition saturation or temperature (filter: saturate(1.4)) during chorus sections.
+- CAMERA SHAKE ON CLIMAX BEATS:
+  Wrap the entire viewport stage inside <div id="camera-rig">. On the heaviest climax word/drop, trigger a rapid micro-jitter:
+  tl.to("#camera-rig", {
+    duration: 0.04,
+    x: "random(-10, 10)",
+    y: "random(-6, 6)",
+    rotation: "random(-0.4, 0.4)",
+    repeat: 5,
+    yoyo: true,
+    ease: "none"
+  }).to("#camera-rig", { x: 0, y: 0, rotation: 0, duration: 0.08 });
+- CHROMATIC ABERRATION (RGB SPLIT):
+  On peak emphasis words, animate text-shadow: -6px 0 rgba(255,0,80,0.8), 6px 0 rgba(0,255,255,0.8) for 0.15s, then snap to clean white.
+
+------------------------------------------------------
+5. UPPER HEADROOM BILLBOARD & OCCLUSION SAFETY
+------------------------------------------------------
+- In Layer 3 (Upper Headroom Billboard, behind subject):
+  * Position text HIGH in the upper 18% to 32% of the frame (e.g. top: 120px to 200px in a 1280px canvas).
+  * This guarantees that 85-90%+ of the letters remain completely visible in the open headroom sky/background plate, with only the bottom edge gracefully kissing or sliding behind the subject's top contour (hair, hat, shoulders, car roof).
+  * NEVER place Layer 3 text in the vertical center (top: 450px-750px) where the main body of the subject would completely hide it!
+- In Layer 5 (Foreground Hero Punch):
+  * Place in front of the subject, positioned either in the upper chest area (top: 240px-300px) or lower third (top: 900px-1000px) for maximum legibility.
 
 ======================================================
 TECHNICAL HYPERFRAMES CONTRACT
@@ -192,7 +243,7 @@ TECHNICAL HYPERFRAMES CONTRACT
 1. Include required metadata:
    <meta name="hyperframes:version" content="0.8">
    <meta name="hyperframes:duration" content="${totalDuration}">
-   <meta name="hyperframes:fps" content="30">
+   <meta name="hyperframes:fps" content="24">
    <meta name="hyperframes:resolution" content="${dims.resolution}">
    <meta name="viewport" content="width=${dims.width}, height=${dims.height}, initial-scale=1.0">
 2. Load GSAP 3: <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
@@ -343,7 +394,7 @@ TECHNICAL HYPERFRAMES CONTRACT
   <meta name="viewport" content="width=${width}, height=${height}, initial-scale=1.0">
   <meta name="hyperframes:version" content="0.8">
   <meta name="hyperframes:duration" content="${totalDuration}">
-  <meta name="hyperframes:fps" content="30">
+  <meta name="hyperframes:fps" content="24">
   <meta name="hyperframes:resolution" content="${resolution}">
   <title>${trackName} · Cinematic Story (${resolution})</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -11,6 +11,26 @@ export interface GeneratedSceneImage {
   promptUsed: string;
 }
 
+
+async function fetchWithRetry(url: string, options: any, maxRetries = 3, delayMs = 1500): Promise<Response> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Network] Attempt ${attempt}/${maxRetries} failed (${err.message}). Retrying in ${delayMs}ms...`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, delayMs * attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export class ImageService {
   /**
    * Generates 3 sequential scene images using OpenRouter Image Model,
@@ -72,7 +92,7 @@ export class ImageService {
       console.log(`======================================================\n`);
 
       try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${config.openrouterApiKey}`,

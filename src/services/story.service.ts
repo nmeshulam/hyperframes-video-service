@@ -17,6 +17,26 @@ export interface StoryPlan {
   scenes: StoryScene[];
 }
 
+
+async function fetchWithRetry(url: string, options: any, maxRetries = 3, delayMs = 1500): Promise<Response> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Network] Attempt ${attempt}/${maxRetries} failed (${err.message}). Retrying in ${delayMs}ms...`);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, delayMs * attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
 export class StoryService {
   /**
    * Generates a 3-scene narrative storyboard with image prompts mapped to transcript words
@@ -104,7 +124,7 @@ Requirements:
 
     try {
       console.log(`[StoryService] Slicing song into 3 scenes via OpenRouter (${config.openrouterStoryModel})...`);
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${config.openrouterApiKey}`,
