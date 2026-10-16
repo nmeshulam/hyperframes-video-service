@@ -172,7 +172,11 @@ const server = http.createServer((req, res) => {
   if (req.method === 'POST' && pathname === '/api/upload-and-run') {
     const trackName = urlObj.searchParams.get('trackName') || 'Untitled Track';
     const aspectRatio = urlObj.searchParams.get('aspectRatio') || '9:16';
+    const reuseTranscript = urlObj.searchParams.get('reuseTranscript') !== 'false';
     const reuseImages = urlObj.searchParams.get('reuseImages') === 'true';
+    const uploadToStorage = urlObj.searchParams.get('uploadToStorage') === 'true';
+    const workflow = urlObj.searchParams.get('workflow') || 'motion_graphics';
+    const motionStyle = urlObj.searchParams.get('motionStyle') || 'abstract_kinetic';
     const rawFilename = urlObj.searchParams.get('filename') || 'audio.mp3';
 
     const safeFilename = path.basename(rawFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -202,8 +206,22 @@ const server = http.createServer((req, res) => {
         currentStep: 'Sending job to HyperFrames container...',
         phases: {
           transcription: { name: 'ElevenLabs Speech-to-Text', start: null, end: null, durationSec: null, status: 'pending' },
-          images: { name: 'Story Planning & Scene Images (Gemini + rembg)', start: null, end: null, durationSec: null, status: 'pending' },
-          composition: { name: 'Claude Sonnet 5.5 WOW Composition', start: null, end: null, durationSec: null, status: 'pending' },
+          images: {
+            name: workflow === 'motion_graphics' ? 'Story Director & Vector Symbols (No Images)' : 'Story Planning & Scene Images (Gemini + rembg)',
+            start: null,
+            end: null,
+            durationSec: workflow === 'motion_graphics' ? '0.00' : null,
+            status: workflow === 'motion_graphics' ? 'completed' : 'pending'
+          },
+          composition: {
+            name: workflow === 'motion_graphics'
+              ? `Claude Sonnet 5.5 Motion Graphics (${motionStyle === 'abstract_kinetic' ? 'Abstract' : 'Narrative'})`
+              : 'Claude Sonnet 5.5 WOW Composition',
+            start: null,
+            end: null,
+            durationSec: null,
+            status: 'pending'
+          },
           render: { name: 'HyperFrames Frame Capture & MP4 Encode', start: null, end: null, durationSec: null, status: 'pending' }
         },
         logs: [{
@@ -225,7 +243,11 @@ const server = http.createServer((req, res) => {
           backend_url: HOST_CALLBACK_URL,
           aspect_ratio: aspectRatio,
           track_name: trackName,
-          reuse_existing_images: reuseImages
+          reuse_existing_transcript: reuseTranscript,
+          reuse_existing_images: reuseImages,
+          upload_to_storage: uploadToStorage,
+          video_workflow: workflow,
+          motion_style: motionStyle
         };
 
         console.log(`[TestApp] Dispatching POST ${CONTAINER_URL}/render-video with payload:`, payload);

@@ -9,11 +9,14 @@ const envPaths = [
   path.resolve(process.cwd(), '.env.staging')
 ];
 
-for (const p of envPaths) {
-  if (fs.existsSync(p)) {
-    dotenv.config({ path: p });
-    break;
-  }
+// Load base env from New-video-generator first, then override with hyperframes-video-service/.env
+const baseEnv = path.resolve(process.cwd(), '../New-video-generator/.env');
+if (fs.existsSync(baseEnv)) {
+  dotenv.config({ path: baseEnv });
+}
+const localEnv = path.resolve(process.cwd(), '.env');
+if (fs.existsSync(localEnv)) {
+  dotenv.config({ path: localEnv, override: true });
 }
 
 export const config = {
@@ -29,7 +32,13 @@ export const config = {
   anthropicModel: process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
   openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
   openrouterStoryModel: process.env.OPENROUTER_STORY_MODEL || 'google/gemini-2.5-flash-lite',
-  openrouterImageModel: process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image',
+  openrouterImageModel: (() => {
+    const m = process.env.OPENROUTER_IMAGE_MODEL || '';
+    if (!m || m.includes('gpt-image')) {
+      return 'google/gemini-3.1-flash-lite-image';
+    }
+    return m;
+  })(),
   workerCount: parseInt(process.env.HYPERFRAMES_WORKER_COUNT || '3', 10),
   tempDir: process.env.TEMP_DIR || '/tmp/hyperframes-jobs',
   cacheDir: process.env.CACHE_DIR || '/app/cache'

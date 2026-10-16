@@ -15,7 +15,11 @@ export interface VideoJobPayload {
   artist_name?: string;
   user_images?: string[];
   style?: string; // e.g. "kinetic"
+  reuse_existing_transcript?: boolean; // testing mode: reuse cached ElevenLabs transcript
   reuse_existing_images?: boolean; // testing mode: reuse cached scene images & layers
+  upload_to_storage?: boolean; // toggle whether to upload to GCS bucket or local only
+  video_workflow?: 'image_storyboard' | 'motion_graphics';
+  motion_style?: 'abstract_kinetic' | 'narrative_iconography';
 }
 
 export interface TranscriptWord {

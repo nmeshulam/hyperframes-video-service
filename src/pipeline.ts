@@ -103,26 +103,50 @@ export async function executeVideoPipeline(payload: VideoJobPayload): Promise<vo
     // 2. Transcript Acquisition (20%)
     let transcript: FullTranscript;
 
+    const shouldReuseTranscript = payload.reuse_existing_transcript !== false;
+    const songKey = (track_name || path.basename(audioSource, audioExt))
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '_');
+    const songCacheDir = path.join(config.cacheDir, 'songs', songKey);
+    fs.mkdirSync(songCacheDir, { recursive: true });
+
+    let candidateTranscriptPath: string | null = null;
     if (existing_transcription_path) {
-      console.log(`[Pipeline] Using existing transcription: ${existing_transcription_path}`);
-      const localTranscriptPath = storageService.resolveLocalPath(existing_transcription_path);
+      candidateTranscriptPath = storageService.resolveLocalPath(existing_transcription_path) || existing_transcription_path;
+    } else if (shouldReuseTranscript) {
+      const candidates = [
+        path.join(songCacheDir, 'transcript.json'),
+        path.resolve(process.cwd(), 'assets/transcript', `${songKey}.json`),
+        path.resolve(process.cwd(), 'assets/transcript', `${path.basename(audioSource, audioExt)}.json`),
+        path.resolve(process.cwd(), 'assets/transcript', `${path.basename(localAudioPath, audioExt)}.json`)
+      ];
+      for (const c of candidates) {
+        if (fs.existsSync(c) && fs.statSync(c).isFile() && fs.statSync(c).size > 10) {
+          candidateTranscriptPath = c;
+          break;
+        }
+      }
+    }
+
+    if (candidateTranscriptPath) {
+      console.log(`\n======================================================`);
+      console.log(`⚡ [Pipeline] REUSING CACHED TRANSCRIPT FOR "${songKey}"`);
+      console.log(`📁 Source: ${candidateTranscriptPath}`);
+      console.log(`⏩ Skipped ElevenLabs transcription (saved ~10-15s & $0 API cost)`);
+      console.log(`======================================================\n`);
+
       let rawJson: any;
-
-      if (localTranscriptPath) {
-        rawJson = await storageService.downloadJson<any>(localTranscriptPath);
+      if (candidateTranscriptPath.startsWith('gs://')) {
+        rawJson = await storageService.downloadJson<any>(candidateTranscriptPath);
       } else {
-        const tBucket = transcriptions_bucket || storageService.getBucketForApp(app_id);
-        const transcriptUri = existing_transcription_path.startsWith('gs://')
-          ? existing_transcription_path
-          : `gs://${tBucket}/${existing_transcription_path}`;
-
-        rawJson = await storageService.downloadJson<any>(transcriptUri);
+        const content = fs.readFileSync(candidateTranscriptPath, 'utf-8');
+        rawJson = JSON.parse(content);
       }
 
       transcript = normalizeTranscript(rawJson);
       console.log(`[Pipeline] Transcript loaded successfully: ${transcript.words.length} words detected (${transcript.duration}s duration).`);
 
-      await notificationService.sendProgress(backend_url, job_id, 'transcription loaded', 20, 'processing', {
+      await notificationService.sendProgress(backend_url, job_id, 'reused cached transcription', 20, 'processing', {
         has_transcription: true
       });
     } else {
@@ -131,130 +155,173 @@ export async function executeVideoPipeline(payload: VideoJobPayload): Promise<vo
 
       transcript = await transcriptionService.transcribeAudio(localAudioPath);
 
-      const tBucket = transcriptions_bucket || storageService.getBucketForApp(app_id);
-      const destinationBlob = `transcripts/${job_id}.json`;
-      console.log(`[Pipeline] Uploading new transcript to gs://${tBucket}/${destinationBlob}`);
-      await storageService.uploadJson(transcript, destinationBlob, tBucket);
+      // Save transcript locally to assets/transcript and song cache
+      const songKeyLocal = (track_name || path.basename(audioSource, audioExt))
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, '_');
+      const songCacheDirEarly = path.join(config.cacheDir, 'songs', songKeyLocal);
+      fs.mkdirSync(songCacheDirEarly, { recursive: true });
+      fs.writeFileSync(path.join(songCacheDirEarly, 'transcript.json'), JSON.stringify(transcript, null, 2), 'utf-8');
+
+      const localTranscriptPath = path.resolve(process.cwd(), 'assets/transcript', `${songKeyLocal}.json`);
+      try {
+        fs.mkdirSync(path.dirname(localTranscriptPath), { recursive: true });
+        fs.writeFileSync(localTranscriptPath, JSON.stringify(transcript, null, 2), 'utf-8');
+        console.log(`[Pipeline] Saved local transcript to: ${localTranscriptPath}`);
+      } catch (e) {
+        console.warn(`[Pipeline] Could not save transcript to assets:`, e);
+      }
+
+      if (payload.upload_to_storage === true) {
+        const tBucket = transcriptions_bucket || storageService.getBucketForApp(app_id);
+        const destinationBlob = `transcripts/${job_id}.json`;
+        console.log(`[Pipeline] Uploading new transcript to gs://${tBucket}/${destinationBlob}`);
+        try {
+          await storageService.uploadJson(transcript, destinationBlob, tBucket);
+        } catch (err: any) {
+          console.warn(`[Pipeline] Non-fatal: GCS transcript upload failed (${err.message}). Continuing locally.`);
+        }
+      } else {
+        console.log(`[Pipeline] Skipping transcript GCS upload (local testing mode).`);
+      }
 
       await notificationService.sendProgress(backend_url, job_id, 'transcription complete', 25, 'processing', {
         has_transcription: true,
-        data: { has_transcription: true, transcript_path: destinationBlob }
+        data: { has_transcription: true, transcript_path: `assets/transcript/${songKeyLocal}.json` }
       });
     }
 
     // --- Fast Iteration / Testing Cache Logic ---
-    const songKey = (track_name || path.basename(audioSource, audioExt))
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '_');
-    const songCacheDir = path.join(config.cacheDir, 'songs', songKey);
-    fs.mkdirSync(songCacheDir, { recursive: true });
+    // (songKey and songCacheDir initialized above)
 
-    const hasCachedLayers =
-      fs.existsSync(path.join(songCacheDir, 'scene1_fg.png')) &&
-      fs.existsSync(path.join(songCacheDir, 'scene1_bg.jpg')) &&
-      fs.existsSync(path.join(songCacheDir, 'scene2_fg.png')) &&
-      fs.existsSync(path.join(songCacheDir, 'scene2_bg.jpg')) &&
-      fs.existsSync(path.join(songCacheDir, 'scene3_fg.png')) &&
-      fs.existsSync(path.join(songCacheDir, 'scene3_bg.jpg'));
+    const isMotionGraphics = payload.video_workflow === 'motion_graphics' || payload.preset?.startsWith('motion_graphics');
+    const motionStyle = payload.motion_style || (payload.preset === 'motion_graphics_narrative' ? 'narrative_iconography' : 'abstract_kinetic');
 
-    const shouldReuseImages = payload.reuse_existing_images !== false &&
-      (payload.reuse_existing_images === true || process.env.CACHE_STORY_IMAGES === 'true' || hasCachedLayers);
+    let compositionHtml: string;
 
-    let storyPlan: StoryPlan;
-    const scenes: SceneLayer[] = [];
-
-    if (shouldReuseImages && hasCachedLayers) {
+    if (isMotionGraphics) {
       console.log(`\n======================================================`);
-      console.log(`⚡ [Pipeline] TESTING MODE: REUSING CACHED ASSETS FOR "${songKey}"`);
-      console.log(`📁 Cache Directory: ${songCacheDir}`);
-      console.log(`⏩ Skipped 3x Gemini image generations and Python rembg segmentation!`);
-      console.log(`⏱ Saved ~30-40 seconds & $0 image generation API cost.`);
+      console.log(`✨ [Pipeline] WORKFLOW: PURE MOTION GRAPHICS (${motionStyle.toUpperCase()})`);
+      console.log(`⏩ Skipped Gemini image generation & Python rembg AI segmentation!`);
+      console.log(`🎨 Generating 100% vector & CSS composition with Claude Sonnet 5.5`);
       console.log(`======================================================\n`);
 
-      // 1. Copy cached images and layers to job directory
-      for (let idx = 1; idx <= 3; idx++) {
-        const cachedRaw = path.join(songCacheDir, `scene_${idx}.jpg`);
-        if (fs.existsSync(cachedRaw)) {
-          fs.copyFileSync(cachedRaw, path.join(imageDir, `scene_${idx}.jpg`));
-        }
-        fs.copyFileSync(path.join(songCacheDir, `scene${idx}_fg.png`), path.join(imageDir, `scene${idx}_fg.png`));
-        fs.copyFileSync(path.join(songCacheDir, `scene${idx}_bg.jpg`), path.join(imageDir, `scene${idx}_bg.jpg`));
-      }
+      await notificationService.sendProgress(
+        backend_url,
+        job_id,
+        `generating motion graphics composition (${motionStyle === 'abstract_kinetic' ? 'Abstract Kinetic' : 'Narrative Iconography'})`,
+        45,
+        'processing'
+      );
 
-      // 2. Load cached story plan or plan story
-      const cachedStoryPlanPath = path.join(songCacheDir, 'story_plan.json');
-      if (fs.existsSync(cachedStoryPlanPath)) {
-        storyPlan = JSON.parse(fs.readFileSync(cachedStoryPlanPath, 'utf-8'));
-        console.log(`[Pipeline] Reused cached story plan: ${storyPlan.scenes.length} scenes (style: ${storyPlan.artStyle})`);
-      } else {
-        storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
-        fs.writeFileSync(cachedStoryPlanPath, JSON.stringify(storyPlan, null, 2), 'utf-8');
-      }
-
-      // 3. Assemble scenes
-      for (let idx = 1; idx <= 3; idx++) {
-        const storyScene = storyPlan.scenes[idx - 1];
-        scenes.push({
-          bgPath: `assets/images/scene${idx}_bg.jpg`,
-          fgPath: `assets/images/scene${idx}_fg.png`,
-          startTime: storyScene?.startTime ?? (idx - 1) * 15,
-          endTime: storyScene?.endTime ?? idx * 15,
-          title: storyScene?.title ?? `Scene ${idx}`,
-          colorTheme: storyScene?.colorTheme ?? 'cyan',
-          wordIds: storyScene?.wordIds ?? []
-        });
-      }
-
-      await notificationService.sendProgress(backend_url, job_id, 'reused cached scene images and layers', 55, 'processing');
+      compositionHtml = await compositionService.generateMotionGraphicsCompositionHtml(
+        transcript,
+        localAudioFilename,
+        motionStyle,
+        track_name,
+        aspect_ratio
+      );
     } else {
-      // 3. Step 1: Story Planning with LLM (30%)
-      await notificationService.sendProgress(backend_url, job_id, 'analyzing lyrics and planning 3-scene story', 30, 'processing');
-      storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
-      fs.writeFileSync(path.join(songCacheDir, 'story_plan.json'), JSON.stringify(storyPlan, null, 2), 'utf-8');
+      // --- Original 2.5D Image Storyboard Workflow ---
+      const hasCachedLayers =
+        fs.existsSync(path.join(songCacheDir, 'scene1_fg.png')) &&
+        fs.existsSync(path.join(songCacheDir, 'scene1_bg.jpg')) &&
+        fs.existsSync(path.join(songCacheDir, 'scene2_fg.png')) &&
+        fs.existsSync(path.join(songCacheDir, 'scene2_bg.jpg')) &&
+        fs.existsSync(path.join(songCacheDir, 'scene3_fg.png')) &&
+        fs.existsSync(path.join(songCacheDir, 'scene3_bg.jpg'));
 
-      // 4. Step 2: Sequential Image Generation with Reference Linking (45%)
-      await notificationService.sendProgress(backend_url, job_id, 'generating 3 consistent photorealistic scene images', 45, 'processing');
-      const generatedImages: GeneratedSceneImage[] = await imageService.generateSceneImages(storyPlan, imageDir, aspect_ratio);
+      const shouldReuseImages = payload.reuse_existing_images !== false &&
+        (payload.reuse_existing_images === true || process.env.CACHE_STORY_IMAGES === 'true' || hasCachedLayers);
 
-      // 5. Step 3: Layer Segmentation via AI Background Removal (55%)
-      await notificationService.sendProgress(backend_url, job_id, 'separating foreground subjects and backgrounds', 55, 'processing');
+      let storyPlan: StoryPlan;
+      const scenes: SceneLayer[] = [];
 
-      for (const img of generatedImages) {
-        const idx = img.sceneIndex;
-        const fgLocal = path.join(imageDir, `scene${idx}_fg.png`);
-        const bgLocal = path.join(imageDir, `scene${idx}_bg.jpg`);
+      if (shouldReuseImages && hasCachedLayers) {
+        console.log(`\n======================================================`);
+        console.log(`⚡ [Pipeline] TESTING MODE: REUSING CACHED ASSETS FOR "${songKey}"`);
+        console.log(`📁 Cache Directory: ${songCacheDir}`);
+        console.log(`⏩ Skipped 3x Gemini image generations and Python rembg segmentation!`);
+        console.log(`⏱ Saved ~30-40 seconds & $0 image generation API cost.`);
+        console.log(`======================================================\n`);
 
-        await segmentationService.separateLayers(img.imagePath, fgLocal, bgLocal);
+        for (let idx = 1; idx <= 3; idx++) {
+          const cachedRaw = path.join(songCacheDir, `scene_${idx}.jpg`);
+          if (fs.existsSync(cachedRaw)) {
+            fs.copyFileSync(cachedRaw, path.join(imageDir, `scene_${idx}.jpg`));
+          }
+          fs.copyFileSync(path.join(songCacheDir, `scene${idx}_fg.png`), path.join(imageDir, `scene${idx}_fg.png`));
+          fs.copyFileSync(path.join(songCacheDir, `scene${idx}_bg.jpg`), path.join(imageDir, `scene${idx}_bg.jpg`));
+        }
 
-        // Copy to persistent cache for future test runs
-        fs.copyFileSync(img.imagePath, path.join(songCacheDir, `scene_${idx}.jpg`));
-        fs.copyFileSync(fgLocal, path.join(songCacheDir, `scene${idx}_fg.png`));
-        fs.copyFileSync(bgLocal, path.join(songCacheDir, `scene${idx}_bg.jpg`));
+        const cachedStoryPlanPath = path.join(songCacheDir, 'story_plan.json');
+        if (fs.existsSync(cachedStoryPlanPath)) {
+          storyPlan = JSON.parse(fs.readFileSync(cachedStoryPlanPath, 'utf-8'));
+          console.log(`[Pipeline] Reused cached story plan: ${storyPlan.scenes.length} scenes (style: ${storyPlan.artStyle})`);
+        } else {
+          storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
+          fs.writeFileSync(cachedStoryPlanPath, JSON.stringify(storyPlan, null, 2), 'utf-8');
+        }
 
-        const storyScene = storyPlan.scenes[idx - 1];
-        scenes.push({
-          bgPath: `assets/images/scene${idx}_bg.jpg`,
-          fgPath: `assets/images/scene${idx}_fg.png`,
-          startTime: storyScene?.startTime ?? (idx - 1) * 15,
-          endTime: storyScene?.endTime ?? idx * 15,
-          title: storyScene?.title ?? `Scene ${idx}`,
-          colorTheme: storyScene?.colorTheme ?? 'cyan',
-          wordIds: storyScene?.wordIds ?? []
-        });
+        for (let idx = 1; idx <= 3; idx++) {
+          const storyScene = storyPlan.scenes[idx - 1];
+          scenes.push({
+            bgPath: `assets/images/scene${idx}_bg.jpg`,
+            fgPath: `assets/images/scene${idx}_fg.png`,
+            startTime: storyScene?.startTime ?? (idx - 1) * 15,
+            endTime: storyScene?.endTime ?? idx * 15,
+            title: storyScene?.title ?? `Scene ${idx}`,
+            colorTheme: storyScene?.colorTheme ?? 'cyan',
+            wordIds: storyScene?.wordIds ?? []
+          });
+        }
+
+        await notificationService.sendProgress(backend_url, job_id, 'reused cached scene images and layers', 55, 'processing');
+      } else {
+        await notificationService.sendProgress(backend_url, job_id, 'analyzing lyrics and planning 3-scene story', 30, 'processing');
+        storyPlan = await storyService.planStory(transcript, track_name, aspect_ratio);
+        fs.writeFileSync(path.join(songCacheDir, 'story_plan.json'), JSON.stringify(storyPlan, null, 2), 'utf-8');
+
+        await notificationService.sendProgress(backend_url, job_id, 'generating 3 consistent photorealistic scene images', 45, 'processing');
+        const generatedImages: GeneratedSceneImage[] = await imageService.generateSceneImages(storyPlan, imageDir, aspect_ratio);
+
+        await notificationService.sendProgress(backend_url, job_id, 'separating foreground subjects and backgrounds', 55, 'processing');
+
+        for (const img of generatedImages) {
+          const idx = img.sceneIndex;
+          const fgLocal = path.join(imageDir, `scene${idx}_fg.png`);
+          const bgLocal = path.join(imageDir, `scene${idx}_bg.jpg`);
+
+          await segmentationService.separateLayers(img.imagePath, fgLocal, bgLocal);
+
+          fs.copyFileSync(img.imagePath, path.join(songCacheDir, `scene_${idx}.jpg`));
+          fs.copyFileSync(fgLocal, path.join(songCacheDir, `scene${idx}_fg.png`));
+          fs.copyFileSync(bgLocal, path.join(songCacheDir, `scene${idx}_bg.jpg`));
+
+          const storyScene = storyPlan.scenes[idx - 1];
+          scenes.push({
+            bgPath: `assets/images/scene${idx}_bg.jpg`,
+            fgPath: `assets/images/scene${idx}_fg.png`,
+            startTime: storyScene?.startTime ?? (idx - 1) * 15,
+            endTime: storyScene?.endTime ?? idx * 15,
+            title: storyScene?.title ?? `Scene ${idx}`,
+            colorTheme: storyScene?.colorTheme ?? 'cyan',
+            wordIds: storyScene?.wordIds ?? []
+          });
+        }
       }
-    }
 
-    // 6. Step 4: Kinetic & Depth Composition Building (65%)
-    await notificationService.sendProgress(backend_url, job_id, 'assembling dynamic kinetic typography composition', 65, 'processing');
-    const compositionHtml = await compositionService.generateCompositionHtml(
-      transcript,
-      localAudioFilename,
-      storyPlan,
-      scenes,
-      preset,
-      track_name,
-      aspect_ratio
-    );
+      await notificationService.sendProgress(backend_url, job_id, 'assembling dynamic kinetic typography composition', 65, 'processing');
+      compositionHtml = await compositionService.generateCompositionHtml(
+        transcript,
+        localAudioFilename,
+        storyPlan,
+        scenes,
+        preset,
+        track_name,
+        aspect_ratio
+      );
+    }
 
     fs.writeFileSync(path.join(jobDir, 'index.html'), compositionHtml, 'utf-8');
 
@@ -290,17 +357,29 @@ export async function executeVideoPipeline(payload: VideoJobPayload): Promise<vo
     fs.copyFileSync(outputMp4Local, localSavedMp4);
     console.log(`[Pipeline] Saved local copy to: ${localSavedMp4}`);
 
-    // 8. Upload Rendered MP4 to GCS (97%)
-    await notificationService.sendProgress(backend_url, job_id, 'uploading video to storage', 97, 'processing');
-    const destBucket = output_bucket || storageService.getBucketForApp(app_id);
-    const destBlob = output_path || `videos/${job_id}/${job_id}.mp4`;
+    // 8. Upload Rendered MP4 to GCS (97%) (Optional / User Toggle)
+    let uploadRes: { gcsUri: string; bucket: string; destinationBlob: string };
+    const shouldUploadToStorage = payload.upload_to_storage === true;
 
-    const uploadRes = await storageService.uploadFile(outputMp4Local, destBlob, destBucket, app_id);
-    console.log(`[Pipeline] Video available at: ${uploadRes.gcsUri}`);
+    if (shouldUploadToStorage) {
+      await notificationService.sendProgress(backend_url, job_id, 'uploading video to storage', 97, 'processing');
+      const destBucket = output_bucket || storageService.getBucketForApp(app_id);
+      const destBlob = output_path || `videos/${job_id}/${job_id}.mp4`;
+
+      uploadRes = await storageService.uploadFile(outputMp4Local, destBlob, destBucket, app_id);
+      console.log(`[Pipeline] Video available at: ${uploadRes.gcsUri}`);
+    } else {
+      console.log(`[Pipeline] Skipping GCS upload (local download mode). Preserved locally at: ${localSavedMp4}`);
+      uploadRes = {
+        gcsUri: `file://${localSavedMp4}`,
+        bucket: 'local-storage',
+        destinationBlob: `renders/rendered_${job_id}.mp4`
+      };
+    }
 
     // 9. Complete Callback (100%)
     const assets = {
-      video_path: destBlob,
+      video_path: uploadRes.destinationBlob,
       video_gcs_uri: uploadRes.gcsUri,
       local_file: `renders/rendered_${job_id}.mp4`,
       download_url: `/renders/rendered_${job_id}.mp4`,

@@ -29,12 +29,12 @@ export function resolveDimensions(aspectRatio: string = '16:9'): DimensionConfig
 
   if (norm === '9:16' || norm === 'vertical' || norm === 'portrait' || norm === 'tiktok' || norm === 'shorts') {
     return {
-      width: 720,
-      height: 1280,
-      resolution: '720x1280',
-      fontSize: 42,
-      maxLineWidth: 620,
-      badgeTop: 90,
+      width: 1080,
+      height: 1920,
+      resolution: '1080x1920',
+      fontSize: 64,
+      maxLineWidth: 920,
+      badgeTop: 140,
       isVertical: true
     };
   }
@@ -482,7 +482,7 @@ TECHNICAL HYPERFRAMES CONTRACT
 </head>
 <body>
   <div id="stage" data-composition-id="main">
-    <audio id="soundtrack" src="assets/audio/${audioFilename}"></audio>
+    <audio id="soundtrack" src="assets/audio/${audioFilename}" data-start="0" data-duration="${totalDuration}"></audio>
     ${scenesHtml}
     <div class="scene-finisher"></div>
   </div>
@@ -493,6 +493,459 @@ TECHNICAL HYPERFRAMES CONTRACT
       const tl = gsap.timeline({ paused: true });
       ${scenesJs}
       ${wordsJs}
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    })();
+  </script>
+</body>
+</html>`;
+  }
+
+  /**
+   * Generates a 100% Vector & CSS Motion Graphics HyperFrames composition using Claude Sonnet 5.5.
+   * Completely eliminates raster images and rembg segmentation for blazingly fast renders.
+   */
+  public async generateMotionGraphicsCompositionHtml(
+    transcript: FullTranscript,
+    audioFilename: string,
+    styleMode: 'abstract_kinetic' | 'narrative_iconography' = 'abstract_kinetic',
+    trackName: string = 'Cinematic Song',
+    aspectRatio: string = '9:16'
+  ): Promise<string> {
+    const totalDuration = transcript.words.length > 0
+      ? Math.ceil(transcript.words[transcript.words.length - 1].end + 2.5)
+      : 50;
+
+    const dims = resolveDimensions(aspectRatio);
+
+    // Dynamic continuous regions based on song duration: 3 to 5 narrative acts
+    let regionCount = 3;
+    if (totalDuration > 90) {
+      regionCount = 5;
+    } else if (totalDuration > 45) {
+      regionCount = 4;
+    }
+    const regionDuration = totalDuration / regionCount;
+
+    if (this.anthropic) {
+      try {
+        console.log(`[CompositionService] Calling Claude (${config.anthropicModel}) for High-End HyperFrames Motion Graphics (${styleMode}, ${regionCount} continuous acts)...`);
+
+        const isNarrative = styleMode === 'narrative_iconography';
+
+        const styleInstructions = isNarrative
+          ? `### VISUAL STYLE: NARRATIVE ICONOGRAPHY & LYRIC SYMBOLS (Storytelling in Motion)
+- Tell the story of the song through bespoke procedural inline SVG vector illustrations and animated symbols that visually embody the lyrics.
+- Vector symbols must NOT be small static icons in a corner! They must be bold hero visual actors that dock directly onto the continuous spine or inhabit the world stage:
+  * For wealth / manifestation / abundance themes: animate 3D tumbling gold coins (SVG with radial gradients), spinning bank vault lock dials that click and unlock, ascending geometric profit staircases with glowing apex points, faceted sparkling diamonds with light glints, and luxury crests.
+  * For struggle / storm / victory themes: animate crackling SVG lightning arcs, swirling particle vortexes, compass needles aligning, shattered shield geometries reassembling, and expanding shockwave rings.
+  * For dreams / focus / vision themes: glowing neon filaments, expanding horizon rings, floating isometric architectural cubes, and luminous light beams.
+- Every symbol must have a motivated entrance, idle breathing during the camera dwell, and dynamic reaction to peak vocal drops (bursting, unlocking, expanding, or igniting).
+- The vector illustrations must be prominent, beautifully styled with glowing strokes, radial gradients, and drop shadows.`
+          : `### VISUAL STYLE: ABSTRACT KINETIC & GRAPHIC DESIGN (Apple Keynote / Spotify Canvas / Studio Vox)
+- High-precision modern graphic design motion: dynamic geometric vectors, neon audio visualizer waveform ribbons, animated sound pulses, isometric wireframe grid floor in 3D CSS perspective, speed streaks, and chromatic dispersion.
+- ZERO external image files. Everything created using inline SVG, HTML5 elements, and CSS transforms.
+- Clean, curated color palette: deep obsidian background (#07090e / #0a0e17), paired with electric mint (#3CE6AC) & cyan (#00E3FF), or radiant gold (#FFD700) & amber (#FF8800), with crisp white typography.
+- Dynamic geometric visualizers: concentric pulsing sonar rings, undulating audio waveforms, isometric matrix lattices, and chromatic RGB split kicks on heavy vocal drops.`;
+
+        const prompt = `
+You are an elite motion graphics director and creative coder authoring a masterclass music video composition for HyperFrames, following the official HyperFrames Motion Grammar and Cinematography Contract (https://hyperframes.heygen.com/prompting/motion).
+
+Your goal: Produce a complete, production-ready, standalone HTML5 motion graphics video composition based on the provided song lyrics and word-level timestamps. 
+NO EXTERNAL IMAGES OR ASSETS MAY BE USED. Every visual element must be created procedurally using HTML5, inline SVG vectors, CSS3 3D transforms, and GSAP 3 animations.
+
+======================================================
+PROJECT & CANVAS SPECIFICATIONS
+======================================================
+- Song Title: "${trackName}"
+- Audio File: "assets/audio/${audioFilename}" (Must be linked via <audio id="soundtrack" src="assets/audio/${audioFilename}" data-start="0" data-duration="${totalDuration}"></audio>)
+- Canvas Format: ${dims.resolution} (${dims.width}px x ${dims.height}px, ${dims.isVertical ? 'Vertical 9:16 Mobile / TikTok / Reels' : 'Horizontal 16:9'})
+- Total Duration: ${totalDuration} seconds (Target 24 FPS)
+- Narrative Journey: ${regionCount} continuous thematic regions (~${regionDuration.toFixed(1)}s per region)
+- Motion Graphics Mode: ${styleMode.toUpperCase()}
+
+======================================================
+WORD-LEVEL TRANSCRIPT (TIMED IN SECONDS)
+======================================================
+${JSON.stringify(transcript.words, null, 2)}
+
+======================================================
+CRITICAL: THE HYPERFRAMES CINEMATOGRAPHY CONTRACT
+======================================================
+The #1 failure of AI motion graphics is the "Slideshow Anti-Pattern" (independent boxes that fade in centered, sit idle, and fade out). You MUST strictly follow the official HyperFrames cinematography contract:
+
+1. ONE CONTINUOUS WORLD-CAMERA (DWELL-AND-SWEEP RHYTHM):
+   - Wrap the main canvas inside a world-camera container: <div id="camera-world">.
+   - The camera dollies smoothly across the continuous world space (pans x/y, subtle 5-8% push-ins z/scale, perspective tilts) in ONE unbroken journey across the song.
+   - Dwell-and-Sweep: The camera SWEEPS dynamically between lyric regions, then eases to a genuine REST / DWELL (1.5s–2.5s) at each hero lyric drop / chorus anchor point.
+   - The World NEVER Freezes: During a camera dwell, the camera rests but the film keeps resolving (ambient particle drift, glowing pulses, waveform oscillation, secondary shimmer).
+   - Region changes happen by ARRIVING through camera travel or parallax, NOT by hard cuts or centered fade-outs.
+   - STRICT NEGATIVE: NO slideshow tells! No element cluster that fades in centered, sits, and fades out. No isolated boxes.
+
+2. THE PERSISTENT VISUAL SPINE (THE CONTINUOUS THREAD):
+   - Include a continuous visual element that spans the ENTIRE video and NEVER leaves the frame: <svg id="persistent-spine"> (e.g. an illuminated 3px laser wire, an audio waveform ribbon, or an isometric trajectory rail).
+   - This spine is the physical anchor of the video: as the camera dollies, the spine threads between regions, morphing its geometry (e.g. an audio waveform in verse 1, an ascending journey vector in chorus, a radiant resonant loop in climax).
+   - Lyrics and hero symbols dock onto or interact with this spine.
+
+3. THREE DEPTH PLANES & FOREGROUND OCCLUSION (RULE 6):
+   - Structure your scene with 3 distinct z-depth planes:
+     * Plane 1 (Far Background, z-index: 1): Subtle isometric grid floor, cosmic dust particles, or deep ambient gradient drifting at 0.2x camera speed.
+     * Plane 2 (Main World Stage, z-index: 10): The persistent spine, lyric typography, and hero vector graphics traveling at 1.0x camera speed.
+     * Plane 3 (Near Foreground Lens, z-index: 50): Large, heavily blurred elements (filter: blur(18px-28px)), floating luminous particles, or chromatic bokeh shards sweeping past close to the lens at 3x-6x camera speed.
+     * OCCLUSION MANDATE: Foreground elements MUST visibly cross in front of the typography/spine. This occlusion physically proves 3D depth to the viewer's eye.
+
+4. THE 8 RULES OF PREMIUM MOTION EXECUTION:
+   - Rule 1 (Nothing ever fully stops): Always maintain an ambient idle drift or 1-2% breathing scale. Never write a frozen hold.
+   - Rule 2 (Camera is an actor): Continuous subtle push-in or parallax drift across the entire timeline.
+   - Rule 3 (Overlapping action): Stagger character and word entrances (0.02s-0.04s stagger); start entering the next visual element while the previous is still settling.
+   - Rule 4 (Motivated compounds): Entrances ease out (power3.out, back.out(2)), impacts ease in (power2.in), exits ease in. Never combine gratuitous simultaneous spin, blur, and slide.
+   - Rule 5 (Overshoot & follow-through): Visual transforms have physical mass overshoots (back.out(2)), with secondary elements settling a beat later.
+   - Rule 6 (Depth planes & occlusion): Respect the 3-plane hierarchy.
+   - Rule 7 (Pacing to genre): Hit downbeats hard with snappy beat-locked typography and micro-chromatic RGB kicks.
+   - Rule 8 (Deterministic execution): Deterministic timeline seekable to any frame.
+
+======================================================
+STYLE & STORYTELLING DIRECTION
+======================================================
+${styleInstructions}
+
+------------------------------------------------------
+KINETIC TYPOGRAPHY SYSTEM (ZERO-OVERLAP RULE)
+------------------------------------------------------
+1. ZERO OVERLAPPING:
+   - When a phrase ends, it MUST cleanly exit before or precisely as the next phrase arrives. No collisions!
+2. CADENCE-DRIVEN GROUPING:
+   - Group rapid words (<0.4s apart) into natural lyrical phrases (3-6 words).
+   - Animate characters/words with punchy ease-out physics: character-stagger baseline rises (<span class="char">), elastic scale-down pops (scale: 1.6 -> 1.0 with back.out(2)), or luminous mask wipes.
+3. HERO PUNCH WORDS:
+   - For rhyming peaks, chorus drops, or key emotional words: give 1.8x - 2.5x scale, neon glow stabs, chromatic RGB splits (text-shadow: -5px 0 #ff0055, 5px 0 #00ffff), or glowing outline strokes.
+4. SAFE POSITIONING:
+   - All text must fit within ${dims.maxLineWidth}px width with at least 10% margins top and bottom (${dims.isVertical ? 'top: 180px to 950px' : 'top: 120px to 850px'}) for perfect legibility.
+
+======================================================
+TECHNICAL HYPERFRAMES CONTRACT
+======================================================
+1. Include required metadata in <head>:
+   <meta name="hyperframes:version" content="0.8">
+   <meta name="hyperframes:duration" content="${totalDuration}">
+   <meta name="hyperframes:fps" content="24">
+   <meta name="hyperframes:resolution" content="${dims.resolution}">
+   <meta name="viewport" content="width=${dims.width}, height=${dims.height}, initial-scale=1.0">
+2. Load GSAP 3: <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+3. CSS: html, body, and root stage MUST be exactly ${dims.width}px by ${dims.height}px with overflow: hidden; background: #07090e; font-family: 'Inter', system-ui, -apple-system, sans-serif;
+4. GSAP Timeline MUST be registered deterministically:
+   const tl = gsap.timeline({ paused: true });
+   window.__timelines = window.__timelines || {};
+   window.__timelines["main"] = tl;
+   tl.seek(0);
+   (Do NOT use tl.play() or Date.now() - HyperFrames seeks frame by frame).
+5. Output ONLY the raw self-contained HTML document wrapped in \`\`\`html ... \`\`\`.
+`;
+
+        console.log(`\n======================================================`);
+        console.log(`🤖 [CompositionService] FULL CINEMATIC MOTION GRAPHICS PROMPT SENT TO CLAUDE (${config.anthropicModel}):`);
+        console.log(`======================================================`);
+        console.log(prompt);
+        console.log(`======================================================\n`);
+
+        const response = await (this.anthropic.messages.create as any)({
+          model: config.anthropicModel,
+          max_tokens: 16384,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'low' },
+          system: skillLoaderService.getHyperframesSystemPrompt(),
+          messages: [{ role: 'user', content: prompt }]
+        });
+
+        const textContent = (response.content || [])
+          .filter((b: any) => b.type === 'text' || b.text)
+          .map((b: any) => b.text || '')
+          .join('\n')
+          .trim();
+
+        console.log(`[CompositionService] Claude responded (${textContent.length} characters received).`);
+
+        const htmlMatch = textContent.match(/```html([\s\S]*?)```/) || textContent.match(/<html[\s\S]*?<\/html>/i);
+        if (htmlMatch) {
+          const generatedHtml = htmlMatch[1] ? htmlMatch[1].trim() : htmlMatch[0].trim();
+          if (transcript.words.length > 0 && generatedHtml.includes(transcript.words[0].word)) {
+            console.log(`✓ [CompositionService] Claude Cinematic Motion Graphics composition validated and accepted! (${generatedHtml.length} characters)`);
+            return generatedHtml;
+          } else {
+            console.warn('[CompositionService] Claude motion graphics output did not contain actual song words. Falling back to master motion graphics.');
+          }
+        } else {
+          console.warn('[CompositionService] Claude response did not contain clear HTML block. Falling back to master motion graphics.');
+        }
+      } catch (err: any) {
+        console.error(`[CompositionService] Claude Motion Graphics API error: ${err.message}. Using master motion graphics.`);
+      }
+    }
+
+    return this.buildMasterMotionGraphicsHtml(transcript, audioFilename, styleMode, totalDuration, trackName, dims, regionCount);
+  }
+
+  /**
+   * Deterministic Master Motion Graphics fallback composition implementing
+   * Continuous World-Camera, Persistent Spine, 3 Depth Planes & Foreground Occlusion
+   */
+  public buildMasterMotionGraphicsHtml(
+    transcript: FullTranscript,
+    audioFilename: string,
+    styleMode: 'abstract_kinetic' | 'narrative_iconography',
+    totalDuration: number,
+    trackName: string,
+    dims: DimensionConfig,
+    sceneCount: number
+  ): string {
+    const { width, height, resolution, fontSize, isVertical } = dims;
+
+    // Group words into phrases (3 to 5 words each)
+    const phrases: Array<{ id: string; text: string; start: number; end: number; words: TranscriptWord[]; posX: number; posY: number }> = [];
+    let curWords: TranscriptWord[] = [];
+
+    // Assign dynamic camera coordinates across world space
+    const centerTop = isVertical ? 860 : 450;
+    const offsets = [
+      { x: 0, y: centerTop },
+      { x: -30, y: centerTop - 40 },
+      { x: 40, y: centerTop + 30 },
+      { x: -20, y: centerTop + 60 },
+      { x: 30, y: centerTop - 30 }
+    ];
+
+    for (let i = 0; i < transcript.words.length; i++) {
+      const w = transcript.words[i];
+      curWords.push(w);
+      const isLast = i === transcript.words.length - 1;
+      const pauseAfter = !isLast && (transcript.words[i + 1].start - w.end > 0.45);
+
+      if (curWords.length >= 4 || pauseAfter || isLast) {
+        const start = curWords[0].start;
+        const end = curWords[curWords.length - 1].end;
+        const text = curWords.map(cw => cw.word).join(' ');
+        const offset = offsets[phrases.length % offsets.length];
+        phrases.push({ 
+          id: `phrase-${phrases.length}`, 
+          text, 
+          start, 
+          end, 
+          words: [...curWords],
+          posX: offset.x,
+          posY: offset.y
+        });
+        curWords = [];
+      }
+    }
+
+    // Generate HTML for phrases
+    const phrasesHtml = phrases.map(p => `
+      <div id="${p.id}" class="kinetic-phrase" style="top: ${p.posY}px;">
+        ${p.words.map((w, idx) => `<span class="k-word word-${idx}">${w.word}</span>`).join(' ')}
+      </div>
+    `).join('\n');
+
+    // Generate GSAP timeline steps for phrases with Dwell-and-Sweep camera motion
+    const phrasesJs = phrases.map(p => `
+      // Phrase: "${p.text}" (${p.start}s - ${p.end}s)
+      tl.fromTo("#${p.id}", 
+        { opacity: 0, scale: 0.82, x: ${p.posX}, y: 40, filter: "blur(8px)" },
+        { opacity: 1, scale: 1, x: ${p.posX}, y: 0, filter: "blur(0px)", duration: 0.28, ease: "back.out(2)" },
+        ${p.start}
+      );
+      // Subtle camera pan to frame the phrase
+      tl.to("#camera-world", {
+        x: ${-p.posX * 0.4},
+        y: ${(centerTop - p.posY) * 0.3},
+        duration: 0.5,
+        ease: "power2.out"
+      }, ${p.start});
+      // Phrase exit before next
+      tl.to("#${p.id}",
+        { opacity: 0, scale: 1.15, x: ${p.posX}, y: -30, filter: "blur(6px)", duration: 0.22, ease: "power2.in" },
+        ${p.end + 0.12}
+      );
+    `).join('\n');
+
+    const isNarrative = styleMode === 'narrative_iconography';
+    const accentColor = isNarrative ? '#FFD700' : '#3CE6AC';
+    const secondaryColor = isNarrative ? '#FF8800' : '#00E3FF';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${trackName} - High-End Motion Graphics</title>
+  <meta name="hyperframes:version" content="0.8">
+  <meta name="hyperframes:duration" content="${totalDuration}">
+  <meta name="hyperframes:fps" content="24">
+  <meta name="hyperframes:resolution" content="${resolution}">
+  <meta name="viewport" content="width=${width}, height=${height}, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: ${width}px; height: ${height}px;
+      overflow: hidden; background: #07090e;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #stage {
+      position: relative; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 40%, #151d30 0%, #060911 85%);
+      overflow: hidden; perspective: 1200px;
+    }
+
+    /* PLANE 1: FAR BACKGROUND (0.2x speed) */
+    #far-plane {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    }
+    .iso-grid {
+      position: absolute; width: 200%; height: 200%; left: -50%; top: -20%;
+      background-image: 
+        linear-gradient(rgba(60, 230, 172, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(60, 230, 172, 0.05) 1px, transparent 1px);
+      background-size: 50px 50px;
+      transform: rotateX(65deg);
+      transform-origin: center center;
+    }
+
+    /* PLANE 2: CONTINUOUS CAMERA WORLD (1.0x speed) */
+    #camera-world {
+      position: absolute; inset: 0; z-index: 10;
+      transform-origin: center center;
+    }
+
+    /* PERSISTENT VISUAL SPINE (Never leaves frame) */
+    #persistent-spine-wrap {
+      position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    }
+    #spine-line {
+      fill: none; stroke: url(#spineGrad); stroke-width: 3.5;
+      stroke-linecap: round; filter: drop-shadow(0 0 10px ${accentColor});
+    }
+
+    /* HERO SYMBOLS & GRAPHICS */
+    .hero-stage-symbol {
+      position: absolute; top: ${isVertical ? '220px' : '150px'}; left: 50%;
+      transform: translateX(-50%); width: 220px; height: 220px;
+      pointer-events: none;
+    }
+
+    /* KINETIC TYPOGRAPHY CONTAINER */
+    .kinetic-phrase {
+      position: absolute; left: 0; width: 100%;
+      padding: 0 ${isVertical ? '48px' : '80px'};
+      text-align: center; font-size: ${fontSize}px;
+      font-weight: 850; line-height: 1.22; letter-spacing: -0.02em;
+      color: #ffffff; text-transform: uppercase;
+      opacity: 0; pointer-events: none;
+      text-shadow: 0 4px 24px rgba(0,0,0,0.85);
+      z-index: 15;
+    }
+    .k-word {
+      display: inline-block; margin: 0 4px;
+    }
+    .k-word:nth-child(even) {
+      color: ${accentColor};
+      text-shadow: 0 0 20px ${accentColor}88;
+    }
+
+    /* PLANE 3: NEAR FOREGROUND LENS (3x-6x speed with heavy blur & OCCLUSION) */
+    #foreground-lens {
+      position: absolute; inset: 0; pointer-events: none; z-index: 50;
+    }
+    .lens-mote {
+      position: absolute; border-radius: 50%;
+      background: radial-gradient(circle, ${secondaryColor}cc 0%, ${accentColor}00 70%);
+      filter: blur(22px); mix-blend-mode: screen;
+    }
+    .mote-1 { width: 180px; height: 180px; top: 15%; left: -50px; }
+    .mote-2 { width: 240px; height: 240px; bottom: 10%; right: -80px; }
+    .mote-3 { width: 140px; height: 140px; top: 60%; left: -60px; }
+  </style>
+</head>
+<body>
+  <div id="stage" data-composition-id="main" data-width="${width}" data-height="${height}">
+    <!-- Plane 1: Far Background -->
+    <div id="far-plane">
+      <div class="iso-grid"></div>
+    </div>
+
+    <!-- Plane 2: Camera World -->
+    <div id="camera-world">
+      <!-- Persistent Spine SVG -->
+      <div id="persistent-spine-wrap">
+        <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="${secondaryColor}" />
+              <stop offset="50%" stop-color="${accentColor}" />
+              <stop offset="100%" stop-color="${secondaryColor}" />
+            </linearGradient>
+          </defs>
+          <path id="spine-line" d="M 0 ${isVertical ? 460 : 360} Q ${width * 0.25} ${isVertical ? 430 : 330}, ${width * 0.5} ${isVertical ? 470 : 370} T ${width} ${isVertical ? 450 : 350}" />
+        </svg>
+      </div>
+
+      <!-- Hero Visual Symbol (Docked to Stage) -->
+      <div class="hero-stage-symbol">
+        ${isNarrative ? `
+        <!-- Narrative: Vault Lock Dial & Manifestation Crest -->
+        <svg id="heroSymbolSvg" viewBox="0 0 200 200" width="100%" height="100%">
+          <circle cx="100" cy="100" r="85" fill="none" stroke="${accentColor}" stroke-width="3" stroke-dasharray="8 6" opacity="0.8" />
+          <circle cx="100" cy="100" r="65" fill="#0c1220" stroke="${secondaryColor}" stroke-width="4" filter="drop-shadow(0 0 12px ${accentColor})" />
+          <path d="M 100 45 L 100 155 M 45 100 L 155 100" stroke="${accentColor}" stroke-width="2.5" />
+          <polygon points="100,55 135,100 100,145 65,100" fill="none" stroke="#ffffff" stroke-width="2.5" />
+          <text x="100" y="108" text-anchor="middle" font-size="28" font-weight="bold" fill="#ffffff" filter="drop-shadow(0 0 8px ${accentColor})">$</text>
+        </svg>
+        ` : `
+        <!-- Abstract: Dynamic Radar Core & Visualizer Rings -->
+        <svg id="heroSymbolSvg" viewBox="0 0 200 200" width="100%" height="100%">
+          <circle cx="100" cy="100" r="88" fill="none" stroke="${secondaryColor}" stroke-width="2" stroke-dasharray="6 4" opacity="0.6" />
+          <circle cx="100" cy="100" r="70" fill="none" stroke="${accentColor}" stroke-width="3" filter="drop-shadow(0 0 10px ${accentColor})" />
+          <polygon points="100,40 152,70 152,130 100,160 48,130 48,70" fill="rgba(60,230,172,0.06)" stroke="${secondaryColor}" stroke-width="2" />
+          <circle cx="100" cy="100" r="24" fill="${accentColor}" opacity="0.85" filter="drop-shadow(0 0 15px ${accentColor})" />
+        </svg>
+        `}
+      </div>
+
+      <!-- Kinetic Phrases -->
+      ${phrasesHtml}
+    </div>
+
+    <!-- Plane 3: Near Foreground Lens (Crosses in front of words) -->
+    <div id="foreground-lens">
+      <div id="mote1" class="lens-mote mote-1"></div>
+      <div id="mote2" class="lens-mote mote-2"></div>
+      <div id="mote3" class="lens-mote mote-3"></div>
+    </div>
+
+    <audio id="soundtrack" src="assets/audio/${audioFilename}" data-start="0" data-duration="${totalDuration}"></audio>
+  </div>
+  <script>
+    (function () {
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      
+      // Rule 1 & 2: Camera Continuous Push-In & Ambient Drift
+      tl.to("#camera-world", { scale: 1.07, duration: ${totalDuration}, ease: "none" }, 0);
+      tl.to(".iso-grid", { y: "+=120", duration: ${totalDuration}, ease: "none" }, 0);
+      
+      // Hero Symbol Continuous Living Rotation & Pulse
+      tl.to("#heroSymbolSvg", { rotation: 360, duration: 25, ease: "none", repeat: 4 }, 0);
+      tl.to("#heroSymbolSvg", { scale: 1.06, yoyo: true, repeat: 20, duration: 2.2, ease: "sine.inOut" }, 0);
+
+      // Persistent Spine Waveform Breathing
+      tl.to("#spine-line", { strokeDashoffset: -200, duration: 15, ease: "none", repeat: 4 }, 0);
+
+      // Plane 3: Foreground Motes sweeping close to lens (Occluding words)
+      tl.fromTo("#mote1", { x: -80, y: 0 }, { x: ${width + 100}, y: 80, duration: 7, repeat: 6, ease: "none" }, 0);
+      tl.fromTo("#mote2", { x: 80, y: 0 }, { x: ${-width - 100}, y: -60, duration: 9, repeat: 5, ease: "none" }, 0);
+      tl.fromTo("#mote3", { x: -60, y: 0 }, { x: ${width + 80}, y: -40, duration: 11, repeat: 4, ease: "none" }, 0);
+
+      // Kinetic Typography & Dwell-and-Sweep Camera
+      ${phrasesJs}
+
       window.__timelines["main"] = tl;
       tl.seek(0);
     })();

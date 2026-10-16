@@ -8,6 +8,14 @@ export class StorageService {
   private client: Storage | null = null;
 
   constructor() {
+    const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (credPath && !fs.existsSync(credPath)) {
+      console.warn(`[StorageService] GOOGLE_APPLICATION_CREDENTIALS points to missing file: ${credPath}. Disabling GCS client.`);
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      this.client = null;
+      return;
+    }
+
     try {
       this.client = new Storage({
         projectId: config.googleCloudProject
@@ -15,6 +23,7 @@ export class StorageService {
       console.log('[StorageService] Google Cloud Storage client initialized successfully.');
     } catch (err) {
       console.warn('[StorageService] Could not initialize GCS client directly (offline/local mode):', err);
+      this.client = null;
     }
   }
 
@@ -148,20 +157,32 @@ export class StorageService {
       };
     }
 
-    const targetBucket = bucketName || this.getBucketForApp(appId);
-    console.log(`[StorageService] Uploading ${localPath} to gs://${targetBucket}/${destinationBlobName}`);
+    try {
+      const targetBucket = bucketName || this.getBucketForApp(appId);
+      console.log(`[StorageService] Uploading ${localPath} to gs://${targetBucket}/${destinationBlobName}`);
 
-    const bucket = this.client.bucket(targetBucket);
-    await bucket.upload(localPath, {
-      destination: destinationBlobName,
-      resumable: true
-    });
+      const bucket = this.client.bucket(targetBucket);
+      await bucket.upload(localPath, {
+        destination: destinationBlobName,
+        resumable: true
+      });
 
-    return {
-      gcsUri: `gs://${targetBucket}/${destinationBlobName}`,
-      bucket: targetBucket,
-      destinationBlob: destinationBlobName
-    };
+      return {
+        gcsUri: `gs://${targetBucket}/${destinationBlobName}`,
+        bucket: targetBucket,
+        destinationBlob: destinationBlobName
+      };
+    } catch (err: any) {
+      console.warn(`[StorageService] GCS upload failed (${err.message}). Saving to local renders/ folder.`);
+      const localDest = path.resolve(process.cwd(), 'renders', path.basename(destinationBlobName));
+      fs.mkdirSync(path.dirname(localDest), { recursive: true });
+      fs.copyFileSync(localPath, localDest);
+      return {
+        gcsUri: `file://${localDest}`,
+        bucket: 'local-storage',
+        destinationBlob: destinationBlobName
+      };
+    }
   }
 
   public async uploadJson(

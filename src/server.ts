@@ -74,7 +74,11 @@ fastify.post('/render-video', async (request, reply) => {
     track_name: body.track_name || body.trackName || 'Cinematic Story',
     artist_name: body.artist_name || body.artistName,
     user_images: body.user_images || body.userImages || [],
-    reuse_existing_images: body.reuse_existing_images ?? body.reuseExistingImages
+    reuse_existing_transcript: body.reuse_existing_transcript ?? body.reuseExistingTranscript ?? true,
+    reuse_existing_images: body.reuse_existing_images ?? body.reuseExistingImages,
+    upload_to_storage: body.upload_to_storage ?? body.uploadToStorage ?? false,
+    video_workflow: body.video_workflow || body.videoWorkflow || (body.preset?.startsWith('motion_graphics') ? 'motion_graphics' : 'image_storyboard'),
+    motion_style: body.motion_style || body.motionStyle || 'abstract_kinetic'
   };
 
   fastify.log.info(`[Server] Received render request for job ${jobId}`);
